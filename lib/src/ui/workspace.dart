@@ -25,6 +25,7 @@ import 'outline_panel.dart';
 import 'pixel_widgets.dart';
 import 'quick_switcher.dart';
 import 'settings_dialog.dart';
+import 'title_bar.dart';
 import 'tutorial.dart';
 
 const _orgTypes = XTypeGroup(label: 'Org and text', extensions: ['org', 'txt', 'org_archive']);
@@ -809,10 +810,15 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final line = Container(width: 1, color: t.border);
     return Scaffold(
       backgroundColor: t.background,
-      body: CallbackShortcuts(
+      body: WindowChrome.resizable(CallbackShortcuts(
         bindings: _shortcuts,
         child: Column(children: [
-          _menuBar(context, t),
+          TitleBar(
+            theme: t,
+            menu: _menuBar(context, t),
+            title: d == null ? 'Haruspex' : '${d.dirty ? '● ' : ''}${d.name} · Haruspex',
+            onClose: quit,
+          ),
           if (docs.isNotEmpty) _tabBar(context, t),
           Expanded(
             child: Row(children: [
@@ -856,7 +862,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           _modeLine(context, t),
           _findVisible ? _findBar(context, t) : _echoArea(t),
         ]),
-      ),
+      )),
     );
   }
 
@@ -983,131 +989,124 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final hasDoc = doc != null;
     VoidCallback? cmd(String id) => hasDoc ? () => _command(id) : null;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(color: t.panel, border: Border(bottom: BorderSide(color: t.border))),
-      child: Row(children: [
-        Expanded(
-          child: MenuBar(
-            children: [
-              SubmenuButton(menuChildren: [
-                item(vault == null ? 'New file' : 'New note', newDocument,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyN, control: true)),
-                item('Open file…', openDialog, shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true)),
-                SubmenuButton(
-                  menuChildren: [
-                    if (settings.recentFiles.isEmpty) item('(none)', null),
-                    for (final f in settings.recentFiles) item(f, () => openPath(f)),
-                  ],
-                  child: const Text('Open recent file'),
-                ),
-                const Divider(height: 1),
-                item('Open folder as vault…', openVaultDialog),
-                SubmenuButton(
-                  menuChildren: [
-                    if (settings.recentVaults.isEmpty) item('(none)', null),
-                    for (final f in settings.recentVaults) item(f, () => openVault(f)),
-                  ],
-                  child: const Text('Open recent folder'),
-                ),
-                item('Quick switcher…', vault == null ? null : quickSwitch,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyP, control: true)),
-                item('Close folder', vault == null ? null : closeVault),
-                const Divider(height: 1),
-                item('Save', hasDoc ? () => save() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true)),
-                item('Save as…', hasDoc ? () => saveAs() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true)),
-                const Divider(height: 1),
-                item('Close tab', hasDoc ? () => closeTab() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyW, control: true)),
-                item('Quit', quit, shortcut: const SingleActivator(LogicalKeyboardKey.keyQ, control: true)),
-              ], child: const Text('File')),
-              SubmenuButton(menuChildren: [
-                item('Undo', hasDoc ? () => editor?.undo() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, control: true)),
-                item('Redo', hasDoc ? () => editor?.redo() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true)),
-                const Divider(height: 1),
-                item('Cut', hasDoc ? () => editor?.cutSelection() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyX, control: true)),
-                item('Copy', hasDoc ? () => editor?.copySelection() : null, hint: 'Ctrl+C (with selection)'),
-                item('Paste', hasDoc ? () => editor?.paste() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyV, control: true)),
-                item('Select all', hasDoc ? () => editor?.selectAll() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyA, control: true)),
-                const Divider(height: 1),
-                item('Find…', hasDoc ? () => _showFind() : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyF, control: true)),
-                item('Replace…', hasDoc ? () => _showFind(replace: true) : null,
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyH, control: true)),
-              ], child: const Text('Edit')),
-              SubmenuButton(menuChildren: [
-                SubmenuButton(menuChildren: [
-                  item('Cycle at caret', cmd('cycle'), hint: 'Tab'),
-                  item('Cycle document', cmd('globalCycle'), hint: 'Shift+Tab'),
-                  item('Overview', cmd('overview')),
-                  item('Contents', cmd('contents')),
-                  item('Show all', cmd('showAll')),
-                ], child: const Text('Visibility')),
-                SubmenuButton(menuChildren: [
-                  item('New heading', cmd('insertHeading'), hint: 'Alt+Enter'),
-                  item('New TODO heading', cmd('insertTodoHeading'), hint: 'Alt+Shift+Enter'),
-                  item('New heading after subtree', cmd('insertHeadingAfter'), hint: 'Ctrl+Enter'),
-                  item('Promote', cmd('promote'), hint: 'Alt+Left'),
-                  item('Demote', cmd('demote'), hint: 'Alt+Right'),
-                  item('Promote subtree', cmd('promoteTree'), hint: 'Alt+Shift+Left'),
-                  item('Demote subtree', cmd('demoteTree'), hint: 'Alt+Shift+Right'),
-                  item('Move up', cmd('moveUp'), hint: 'Alt+Up'),
-                  item('Move down', cmd('moveDown'), hint: 'Alt+Down'),
-                  item('Toggle heading', cmd('toggleHeading'), hint: 'C-c *'),
-                ], child: const Text('Structure')),
-                const Divider(height: 1),
-                item('Cycle TODO', cmd('todo'), hint: 'C-c C-t'),
-                item('Priority…', cmd('priority'), hint: 'C-c ,'),
-                item('Tags…', cmd('tags'), hint: 'C-c C-q'),
-                item('Schedule…', cmd('schedule'), hint: 'C-c C-s'),
-                item('Deadline…', cmd('deadline'), hint: 'C-c C-d'),
-                item('Timestamp…', cmd('timestamp'), hint: 'C-c .'),
-                item('Inactive timestamp…', cmd('inactiveTimestamp'), hint: 'C-c !'),
-                const Divider(height: 1),
-                item('New list item', cmd('insertItem'), hint: 'Alt+Enter'),
-                item('Toggle checkbox', cmd('checkbox'), hint: 'C-c C-c'),
-                item('Add/remove checkbox', cmd('checkboxPresence'), hint: 'C-c C-x'),
-                item('Update statistics', cmd('statistics'), hint: 'C-c #'),
-                const Divider(height: 1),
-                item('Insert / align table', cmd('table'), hint: 'C-c |'),
-                item('Insert table rule', cmd('tableHline'), hint: 'C-c -'),
-                const Divider(height: 1),
-                item('Insert link…', cmd('link'), hint: 'C-c C-l'),
-                item('Open link', cmd('openLink'), hint: 'C-c C-o'),
-                const Divider(height: 1),
-                item('Agenda', hasDoc || vault != null ? _openAgenda : null, hint: 'C-c a'),
-              ], child: const Text('Org')),
-              SubmenuButton(menuChildren: [
-                item(settings.showFiles ? 'Hide files' : 'Show files',
-                    vault == null ? null : () => settings.update((s) => s.showFiles = !s.showFiles),
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyE, control: true, shift: true)),
-                item(settings.showOutline ? 'Hide outline' : 'Show outline',
-                    () => settings.update((s) => s.showOutline = !s.showOutline),
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true, shift: true)),
-                item(settings.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
-                    () => settings.update((s) => s.lineNumbers = !s.lineNumbers)),
-                item('Zoom in', () => _zoom(1), shortcut: const SingleActivator(LogicalKeyboardKey.equal, control: true)),
-                item('Zoom out', () => _zoom(-1), shortcut: const SingleActivator(LogicalKeyboardKey.minus, control: true)),
-                item('Reset zoom', () => _zoom(0), shortcut: const SingleActivator(LogicalKeyboardKey.digit0, control: true)),
-                const Divider(height: 1),
-                item('Dashboard', docs.isEmpty ? null : _showDashboard),
-                item('Settings…', () => showSettingsDialog(context, settings)),
-              ], child: const Text('View')),
-              SubmenuButton(menuChildren: [
-                item('Keyboard shortcuts', () => showKeyBindings(context)),
-                item('Tutorial', () => _addDoc(_newDoc(tutorialText))),
-                item('About', () => showInfo(context, 'Haruspex', 'A plain text editor built on Org mode.\nVersion $appVersion.')),
-              ], child: const Text('Help')),
+    return MenuBar(
+      children: [
+        SubmenuButton(menuChildren: [
+          item(vault == null ? 'New file' : 'New note', newDocument,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyN, control: true)),
+          item('Open file…', openDialog, shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true)),
+          SubmenuButton(
+            menuChildren: [
+              if (settings.recentFiles.isEmpty) item('(none)', null),
+              for (final f in settings.recentFiles) item(f, () => openPath(f)),
             ],
+            child: const Text('Open recent file'),
           ),
-        ),
-      ]),
+          const Divider(height: 1),
+          item('Open folder as vault…', openVaultDialog),
+          SubmenuButton(
+            menuChildren: [
+              if (settings.recentVaults.isEmpty) item('(none)', null),
+              for (final f in settings.recentVaults) item(f, () => openVault(f)),
+            ],
+            child: const Text('Open recent folder'),
+          ),
+          item('Quick switcher…', vault == null ? null : quickSwitch,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyP, control: true)),
+          item('Close folder', vault == null ? null : closeVault),
+          const Divider(height: 1),
+          item('Save', hasDoc ? () => save() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true)),
+          item('Save as…', hasDoc ? () => saveAs() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true)),
+          const Divider(height: 1),
+          item('Close tab', hasDoc ? () => closeTab() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyW, control: true)),
+          item('Quit', quit, shortcut: const SingleActivator(LogicalKeyboardKey.keyQ, control: true)),
+        ], child: const Text('File')),
+        SubmenuButton(menuChildren: [
+          item('Undo', hasDoc ? () => editor?.undo() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, control: true)),
+          item('Redo', hasDoc ? () => editor?.redo() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true)),
+          const Divider(height: 1),
+          item('Cut', hasDoc ? () => editor?.cutSelection() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyX, control: true)),
+          item('Copy', hasDoc ? () => editor?.copySelection() : null, hint: 'Ctrl+C (with selection)'),
+          item('Paste', hasDoc ? () => editor?.paste() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyV, control: true)),
+          item('Select all', hasDoc ? () => editor?.selectAll() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyA, control: true)),
+          const Divider(height: 1),
+          item('Find…', hasDoc ? () => _showFind() : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyF, control: true)),
+          item('Replace…', hasDoc ? () => _showFind(replace: true) : null,
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyH, control: true)),
+        ], child: const Text('Edit')),
+        SubmenuButton(menuChildren: [
+          SubmenuButton(menuChildren: [
+            item('Cycle at caret', cmd('cycle'), hint: 'Tab'),
+            item('Cycle document', cmd('globalCycle'), hint: 'Shift+Tab'),
+            item('Overview', cmd('overview')),
+            item('Contents', cmd('contents')),
+            item('Show all', cmd('showAll')),
+          ], child: const Text('Visibility')),
+          SubmenuButton(menuChildren: [
+            item('New heading', cmd('insertHeading'), hint: 'Alt+Enter'),
+            item('New TODO heading', cmd('insertTodoHeading'), hint: 'Alt+Shift+Enter'),
+            item('New heading after subtree', cmd('insertHeadingAfter'), hint: 'Ctrl+Enter'),
+            item('Promote', cmd('promote'), hint: 'Alt+Left'),
+            item('Demote', cmd('demote'), hint: 'Alt+Right'),
+            item('Promote subtree', cmd('promoteTree'), hint: 'Alt+Shift+Left'),
+            item('Demote subtree', cmd('demoteTree'), hint: 'Alt+Shift+Right'),
+            item('Move up', cmd('moveUp'), hint: 'Alt+Up'),
+            item('Move down', cmd('moveDown'), hint: 'Alt+Down'),
+            item('Toggle heading', cmd('toggleHeading'), hint: 'C-c *'),
+          ], child: const Text('Structure')),
+          const Divider(height: 1),
+          item('Cycle TODO', cmd('todo'), hint: 'C-c C-t'),
+          item('Priority…', cmd('priority'), hint: 'C-c ,'),
+          item('Tags…', cmd('tags'), hint: 'C-c C-q'),
+          item('Schedule…', cmd('schedule'), hint: 'C-c C-s'),
+          item('Deadline…', cmd('deadline'), hint: 'C-c C-d'),
+          item('Timestamp…', cmd('timestamp'), hint: 'C-c .'),
+          item('Inactive timestamp…', cmd('inactiveTimestamp'), hint: 'C-c !'),
+          const Divider(height: 1),
+          item('New list item', cmd('insertItem'), hint: 'Alt+Enter'),
+          item('Toggle checkbox', cmd('checkbox'), hint: 'C-c C-c'),
+          item('Add/remove checkbox', cmd('checkboxPresence'), hint: 'C-c C-x'),
+          item('Update statistics', cmd('statistics'), hint: 'C-c #'),
+          const Divider(height: 1),
+          item('Insert / align table', cmd('table'), hint: 'C-c |'),
+          item('Insert table rule', cmd('tableHline'), hint: 'C-c -'),
+          const Divider(height: 1),
+          item('Insert link…', cmd('link'), hint: 'C-c C-l'),
+          item('Open link', cmd('openLink'), hint: 'C-c C-o'),
+          const Divider(height: 1),
+          item('Agenda', hasDoc || vault != null ? _openAgenda : null, hint: 'C-c a'),
+        ], child: const Text('Org')),
+        SubmenuButton(menuChildren: [
+          item(settings.showFiles ? 'Hide files' : 'Show files',
+              vault == null ? null : () => settings.update((s) => s.showFiles = !s.showFiles),
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyE, control: true, shift: true)),
+          item(settings.showOutline ? 'Hide outline' : 'Show outline',
+              () => settings.update((s) => s.showOutline = !s.showOutline),
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true, shift: true)),
+          item(settings.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
+              () => settings.update((s) => s.lineNumbers = !s.lineNumbers)),
+          item('Zoom in', () => _zoom(1), shortcut: const SingleActivator(LogicalKeyboardKey.equal, control: true)),
+          item('Zoom out', () => _zoom(-1), shortcut: const SingleActivator(LogicalKeyboardKey.minus, control: true)),
+          item('Reset zoom', () => _zoom(0), shortcut: const SingleActivator(LogicalKeyboardKey.digit0, control: true)),
+          const Divider(height: 1),
+          item('Dashboard', docs.isEmpty ? null : _showDashboard),
+          item('Settings…', () => showSettingsDialog(context, settings)),
+        ], child: const Text('View')),
+        SubmenuButton(menuChildren: [
+          item('Keyboard shortcuts', () => showKeyBindings(context)),
+          item('Tutorial', () => _addDoc(_newDoc(tutorialText))),
+          item('About', () => showInfo(context, 'Haruspex', 'A plain text editor built on Org mode.\nVersion $appVersion.')),
+        ], child: const Text('Help')),
+      ],
     );
   }
 

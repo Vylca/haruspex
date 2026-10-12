@@ -13,6 +13,7 @@ class HoverBox extends StatefulWidget {
     this.tooltip,
     this.onSecondaryTapDown,
     this.selected = false,
+    this.hotColor,
   });
 
   final OrgTheme theme;
@@ -23,6 +24,9 @@ class HoverBox extends StatefulWidget {
 
   /// Drawn as the current item (dim orange background) when not hovered.
   final bool selected;
+
+  /// Background under the mouse, orange by default.
+  final Color? hotColor;
 
   @override
   State<HoverBox> createState() => _HoverBoxState();
@@ -44,7 +48,7 @@ class _HoverBoxState extends State<HoverBox> {
         onTap: widget.onTap,
         onSecondaryTapDown: widget.onSecondaryTapDown,
         child: ColoredBox(
-          color: hot ? t.accent : (widget.selected ? t.markerBg : Colors.transparent),
+          color: hot ? (widget.hotColor ?? t.accent) : (widget.selected ? t.markerBg : Colors.transparent),
           child: widget.builder(hot),
         ),
       ),
@@ -67,8 +71,8 @@ const List<String> logoRows = [
   '....##..............##....',
   '....##..............##....',
   '.....##............##.....',
-  '......##############......',
-  '......##############......',
+  '...####################...',
+  '...####################...',
   '.......##........##.......',
   '........##......##........',
   '........##......##........',
@@ -78,6 +82,21 @@ const List<String> logoRows = [
   '...........####...........',
   '............##............',
   '............##............',
+];
+
+/// The logo with one pixel strokes, for the title bar.
+const List<String> smallLogoRows = [
+  '#############',
+  '#...........#',
+  '.#.........#.',
+  '..#.......#..',
+  '..#.......#..',
+  '.###########.',
+  '....#...#....',
+  '....#...#....',
+  '.....#.#.....',
+  '......#......',
+  '......#......',
 ];
 
 /// Pixel art from rows of '#' (filled) and '.' (empty), drawn as squares.

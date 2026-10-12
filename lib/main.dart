@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'src/app/settings.dart';
 import 'src/editor/org_theme.dart';
 import 'src/ui/hev_theme.dart';
+import 'src/ui/title_bar.dart';
 import 'src/ui/workspace.dart';
 
 Future<void> main(List<String> args) async {
@@ -13,6 +14,7 @@ Future<void> main(List<String> args) async {
     final text = await rootBundle.loadString('assets/fonts/LICENSE-Spleen.txt');
     yield LicenseEntryWithLineBreaks(const ['Spleen font'], text);
   });
+  await WindowChrome.init();
   final settings = AppSettings();
   await settings.load();
   runApp(HaruspexApp(settings: settings, initialFiles: args));

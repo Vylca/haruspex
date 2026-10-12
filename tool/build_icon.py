@@ -4,35 +4,40 @@ triangle crossed by a bar), as pixel art.
 
     python3 tool/build_icon.py assets/icon/haruspex.png   # 256 px app icon
     python3 tool/build_icon.py --rows                      # rows for the app
+    python3 tool/build_icon.py --small-rows                # title bar logo
 
 Needs Pillow for the PNG.
 """
 import sys
 
-N = 32       # icon grid
-WIDTH = 26   # width of the triangle's top edge
-STROKE = 2   # line thickness
-BAR = 9      # first row of the crossing bar (two rows thick)
+N = 32  # icon grid
 
 
-def rows():
+def rows(width=26, stroke=2, bar=9, over=3):
     """The symbol as rows of '#' and '.'. The sides step in by two pixels
-    every three rows, a regular staircase close to an equilateral slope."""
+    every three rows, a regular staircase close to an equilateral slope. The
+    bar reaches [over] pixels past the sides."""
     out = []
     r = 0
     while True:
         left = (r * 2) // 3
-        right = WIDTH - left
-        if right - left < STROKE:
+        right = width - left
+        if right - left < stroke:
             break
-        row = ["."] * WIDTH
-        full = r < STROKE or BAR <= r < BAR + STROKE
-        for x in range(left, right):
-            if full or x < left + STROKE or x >= right - STROKE:
+        row = ["."] * width
+        is_bar = bar <= r < bar + stroke
+        lo, hi = (max(0, left - over), min(width, right + over)) if is_bar else (left, right)
+        for x in range(lo, hi):
+            if r < stroke or is_bar or x < left + stroke or x >= right - stroke:
                 row[x] = "#"
         out.append("".join(row))
         r += 1
     return out
+
+
+def small_rows():
+    """One pixel strokes, for the title bar."""
+    return rows(width=13, stroke=1, bar=5, over=2)
 
 
 def icon(path):
@@ -58,6 +63,9 @@ def icon(path):
 if __name__ == "__main__":
     if sys.argv[1] == "--rows":
         for r in rows():
-            print(f"    '{r}',")
+            print(f"  '{r}',")
+    elif sys.argv[1] == "--small-rows":
+        for r in small_rows():
+            print(f"  '{r}',")
     else:
         icon(sys.argv[1])
