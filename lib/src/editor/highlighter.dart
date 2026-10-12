@@ -12,7 +12,7 @@ import 'org_theme.dart';
 class OrgHighlighter {
   OrgHighlighter();
 
-  OrgTheme theme = OrgTheme.light;
+  OrgTheme theme = OrgTheme.hev;
   String? fontFamily;
   String monoFamily = 'monospace';
   bool hideMarkup = true;
@@ -128,7 +128,7 @@ class OrgHighlighter {
         return [TextSpan(text: line, style: faint)];
       case LineKind.blockBegin:
       case LineKind.blockEnd:
-        return [TextSpan(text: line, style: _mono.copyWith(color: t.faint, fontSize: _baseSize * 0.88))];
+        return [TextSpan(text: line, style: _mono.copyWith(color: t.faint))];
       case LineKind.blockContent:
         final type = info.blockType ?? '';
         if (type == 'src' || type == 'example' || type == 'export') {
@@ -145,9 +145,10 @@ class OrgHighlighter {
         final key = m.group(1)!.trim().toUpperCase();
         TextStyle valueStyle = const TextStyle();
         if (key == '#+TITLE:') {
-          valueStyle = TextStyle(fontSize: _baseSize * 1.5, fontWeight: FontWeight.w700, color: t.text);
+          // Twice the size keeps a pixel font on the pixel grid.
+          valueStyle = TextStyle(fontSize: _baseSize * 2, color: t.accent);
         } else if (key == '#+SUBTITLE:') {
-          valueStyle = TextStyle(fontSize: _baseSize * 1.15, color: t.faint);
+          valueStyle = TextStyle(color: t.levels[1]);
         } else if (const {'#+TODO:', '#+SEQ_TODO:', '#+TYP_TODO:', '#+STARTUP:', '#+OPTIONS:', '#+PRIORITIES:', '#+TBLFM:'}
             .contains(key)) {
           valueStyle = TextStyle(color: t.faint);
@@ -210,7 +211,7 @@ class OrgHighlighter {
     p = h.level;
     if (h.kwStart >= 0) {
       plain(h.kwStart);
-      plain(h.kwEnd, base.copyWith(color: done ? t.done : t.todo, fontWeight: FontWeight.w800));
+      plain(h.kwEnd, base.copyWith(color: done ? t.done : t.todo, fontWeight: FontWeight.w700));
     }
     if (h.prioStart >= 0) {
       plain(h.prioStart);
@@ -223,7 +224,7 @@ class OrgHighlighter {
     }
     if (h.tagsStart >= 0) {
       plain(h.tagsStart);
-      plain(h.tagsEnd, base.copyWith(color: t.tag, fontWeight: FontWeight.w500, fontSize: size * 0.85));
+      plain(h.tagsEnd, base.copyWith(color: t.tag, fontWeight: FontWeight.w400));
     }
     plain(line.length);
     return spans;
@@ -413,7 +414,7 @@ class OrgHighlighter {
         case 7: // emphasis
           final marker = m.group(1)!;
           final inner = switch (marker) {
-            '*' => const TextStyle(fontWeight: FontWeight.w700),
+            '*' => TextStyle(fontWeight: FontWeight.w700, color: t.bright),
             '/' => const TextStyle(fontStyle: FontStyle.italic),
             '_' => const TextStyle(decoration: TextDecoration.underline),
             _ => const TextStyle(decoration: TextDecoration.lineThrough),

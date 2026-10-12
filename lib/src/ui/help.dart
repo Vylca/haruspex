@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../editor/org_theme.dart';
+
 const keyBindings = <(String, List<(String, String)>)>[
   ('Visibility', [
     ('Tab', 'Cycle heading / drawer / block, next table cell'),
@@ -68,7 +70,7 @@ Future<void> showKeyBindings(BuildContext context) {
     builder: (ctx) => AlertDialog(
       title: const Text('Keyboard shortcuts'),
       content: SizedBox(
-        width: 560,
+        width: 640,
         height: 520,
         child: ListView(children: [
           const Padding(
@@ -79,13 +81,13 @@ Future<void> showKeyBindings(BuildContext context) {
           for (final (section, rows) in keyBindings) ...[
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Text(section, style: const TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(section, style: TextStyle(color: OrgTheme.hev.levels[1])),
             ),
             for (final (k, d) in rows)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  SizedBox(width: 200, child: Text(k, style: const TextStyle(fontFamily: 'monospace', fontSize: 13))),
+                  SizedBox(width: 240, child: Text(k, style: TextStyle(color: OrgTheme.hev.accent))),
                   Expanded(child: Text(d)),
                 ]),
               ),

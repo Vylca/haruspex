@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../app/settings.dart';
+import '../editor/org_theme.dart';
 
 Future<List<String>>? _fontList;
 
@@ -29,7 +30,7 @@ Widget _fontPicker(AppSettings s, String label, String value, void Function(Stri
         ),
         Padding(
           padding: const EdgeInsets.only(top: 6, left: 4),
-          child: Text('* TODO The quick brown fox  :tag:', style: TextStyle(fontFamily: value, fontSize: 15)),
+          child: Text('* TODO The quick brown fox  :tag:', style: TextStyle(fontFamily: value, fontSize: s.fontSize)),
         ),
       ]);
     },
@@ -48,21 +49,11 @@ Future<void> showSettingsDialog(BuildContext context, AppSettings settings) {
           content: SizedBox(
             width: 480,
             child: ListView(shrinkWrap: true, children: [
-              const _Label('Theme'),
-              SegmentedButton<ThemeMode>(
-                segments: const [
-                  ButtonSegment(value: ThemeMode.system, label: Text('System')),
-                  ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                  ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-                ],
-                selected: {s.themeMode},
-                onSelectionChanged: (v) => s.update((x) => x.themeMode = v.first),
-              ),
               const _Label('Editor font'),
               _fontPicker(s, 'Text', s.fontFamily, (v) => s.update((x) => x.fontFamily = v)),
               const _Label('Code and table font'),
               _fontPicker(s, 'Code', s.codeFontFamily, (v) => s.update((x) => x.codeFontFamily = v)),
-              _Label('Font size: ${s.fontSize.round()}'),
+              _Label('Font size: ${s.fontSize.round()}  (the pixel font is sharpest at 16 and 32)'),
               Slider(
                 min: 9,
                 max: 40,
@@ -86,54 +77,29 @@ Future<void> showSettingsDialog(BuildContext context, AppSettings settings) {
                 value: s.maxWidth.clamp(500.0, 2000.0),
                 onChanged: (v) => s.update((x) => x.maxWidth = v),
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Hide markup away from the caret'),
-                subtitle: const Text('Link brackets and emphasis markers show only on the current line'),
-                value: s.hideMarkup,
-                onChanged: (v) => s.update((x) => x.hideMarkup = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Indent text under its heading (org-indent)'),
-                value: s.indentBody,
-                onChanged: (v) => s.update((x) => x.indentBody = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Bullets instead of stars (org-superstar)'),
-                value: s.superstar,
-                onChanged: (v) => s.update((x) => x.superstar = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Larger top-level headings'),
-                value: s.scaleHeadings,
-                onChanged: (v) => s.update((x) => x.scaleHeadings = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Fold drawers when opening files'),
-                value: s.foldDrawers,
-                onChanged: (v) => s.update((x) => x.foldDrawers = v),
-              ),
+              const _Label('Display'),
+              _check('Line numbers', s.lineNumbers, (v) => s.update((x) => x.lineNumbers = v)),
+              _check('Center the text column', s.centerText, (v) => s.update((x) => x.centerText = v)),
+              _check('Hide markup away from the caret', s.hideMarkup, (v) => s.update((x) => x.hideMarkup = v)),
+              _check('Indent text under its heading (org-indent)', s.indentBody, (v) => s.update((x) => x.indentBody = v)),
+              _check('Bullets instead of stars (org-superstar)', s.superstar, (v) => s.update((x) => x.superstar = v)),
+              _check('Larger top-level headings', s.scaleHeadings, (v) => s.update((x) => x.scaleHeadings = v)),
+              _check('Fold drawers when opening files', s.foldDrawers, (v) => s.update((x) => x.foldDrawers = v)),
               const _Label('Agenda files'),
-              const Text('Open documents are always included.', style: TextStyle(fontSize: 12)),
+              const Text('Open documents and the open folder are always included.'),
               for (final f in s.agendaFiles)
                 ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(f, overflow: TextOverflow.ellipsis),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.remove_circle_outline),
+                  trailing: TextButton(
                     onPressed: () => s.update((x) => x.agendaFiles = [...x.agendaFiles]..remove(f)),
+                    child: const Text('remove'),
                   ),
                 ),
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add files…'),
+                child: TextButton(
                   onPressed: () async {
                     final files = await openFiles(acceptedTypeGroups: const [
                       XTypeGroup(label: 'Org', extensions: ['org', 'txt']),
@@ -141,6 +107,7 @@ Future<void> showSettingsDialog(BuildContext context, AppSettings settings) {
                     if (files.isEmpty) return;
                     s.update((x) => x.agendaFiles = {...x.agendaFiles, ...files.map((f) => f.path)}.toList());
                   },
+                  child: const Text('Add files…'),
                 ),
               ),
             ]),
@@ -152,6 +119,14 @@ Future<void> showSettingsDialog(BuildContext context, AppSettings settings) {
   );
 }
 
+Widget _check(String label, bool value, ValueChanged<bool> onChanged) => CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      title: Text(label),
+      value: value,
+      onChanged: (v) => onChanged(v ?? false),
+    );
+
 class _Label extends StatelessWidget {
   const _Label(this.text);
   final String text;
@@ -159,6 +134,6 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 14, bottom: 6),
-        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        child: Text(text, style: TextStyle(color: OrgTheme.hev.levels[1])),
       );
 }

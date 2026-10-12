@@ -11,6 +11,13 @@ Future<OrgEditorState> startEditor(WidgetTester tester, String text) async {
   final settings = AppSettings()..tutorialShown = true;
   await tester.pumpWidget(OrgPadApp(settings: settings, initialFiles: const []));
   await tester.pumpAndSettle();
+  // The dashboard shows at start. Ctrl+N opens an empty buffer.
+  if (find.byType(OrgEditor).evaluate().isEmpty) {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+  }
   final state = tester.state<OrgEditorState>(find.byType(OrgEditor).first);
   state.doc.controller.value = TextEditingValue(text: text, selection: const TextSelection.collapsed(offset: 0));
   state.doc.focusNode.requestFocus();

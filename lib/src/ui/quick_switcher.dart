@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/vault.dart';
+import '../editor/org_theme.dart';
+import 'pixel_widgets.dart';
 
 /// Result of the quick switcher: an existing note, or a name to create.
 class SwitcherChoice {
@@ -74,63 +76,81 @@ class _QuickSwitcherState extends State<_QuickSwitcher> {
   @override
   Widget build(BuildContext context) {
     final matches = _matches;
-    final scheme = Theme.of(context).colorScheme;
+    final t = OrgTheme.hev;
+    final query = _q.text.trim();
     return Dialog(
-      alignment: const Alignment(0, -0.6),
+      alignment: const Alignment(0, -0.7),
       child: SizedBox(
-        width: 560,
+        width: 600,
         height: 420,
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Focus(
-              onKeyEvent: (node, e) {
-                if (e is KeyUpEvent) return KeyEventResult.ignored;
-                if (e.logicalKey == LogicalKeyboardKey.arrowDown) {
-                  setState(() => _selected = (_selected + 1).clamp(0, matches.isEmpty ? 0 : matches.length - 1));
-                  return KeyEventResult.handled;
-                }
-                if (e.logicalKey == LogicalKeyboardKey.arrowUp) {
-                  setState(() => _selected = (_selected - 1).clamp(0, matches.isEmpty ? 0 : matches.length - 1));
-                  return KeyEventResult.handled;
-                }
-                return KeyEventResult.ignored;
-              },
-              child: TextField(
-                controller: _q,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Find or create a note…',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.border))),
+            child: Row(children: [
+              Text('Find note: ', style: TextStyle(color: t.accent)),
+              Expanded(
+                child: Focus(
+                  onKeyEvent: (node, e) {
+                    if (e is KeyUpEvent) return KeyEventResult.ignored;
+                    if (e.logicalKey == LogicalKeyboardKey.arrowDown) {
+                      setState(() => _selected = (_selected + 1).clamp(0, matches.isEmpty ? 0 : matches.length - 1));
+                      return KeyEventResult.handled;
+                    }
+                    if (e.logicalKey == LogicalKeyboardKey.arrowUp) {
+                      setState(() => _selected = (_selected - 1).clamp(0, matches.isEmpty ? 0 : matches.length - 1));
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: TextField(
+                    controller: _q,
+                    autofocus: true,
+                    style: TextStyle(color: t.text),
+                    decoration: const InputDecoration.collapsed(hintText: ''),
+                    onChanged: (_) => setState(() => _selected = 0),
+                    onSubmitted: (_) => _submit(),
+                  ),
                 ),
-                onChanged: (_) => setState(() => _selected = 0),
-                onSubmitted: (_) => _submit(),
               ),
-            ),
+              Text('${matches.length}/${widget.vault.notes.length}', style: TextStyle(color: t.faint)),
+            ]),
           ),
           Expanded(
             child: matches.isEmpty
-                ? Center(
+                ? Padding(
+                    padding: const EdgeInsets.all(8),
                     child: Text(
-                      _q.text.trim().isEmpty ? 'No notes in this vault' : 'Enter creates "${_q.text.trim()}"',
-                      style: TextStyle(color: scheme.outline),
+                      query.isEmpty ? 'No notes in this vault' : 'Enter creates "$query"',
+                      style: TextStyle(color: t.faint),
                     ),
                   )
                 : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
                     itemCount: matches.length,
                     itemBuilder: (context, i) {
                       final rel = widget.vault.relative(matches[i]);
                       final name = stripNoteExtension(baseName(rel));
                       final folder = rel.contains('/') ? rel.substring(0, rel.lastIndexOf('/')) : '';
-                      return ListTile(
-                        dense: true,
-                        selected: i == _selected,
-                        selectedTileColor: scheme.secondaryContainer,
-                        title: Text(name),
-                        subtitle: folder.isEmpty ? null : Text(folder),
+                      final selected = i == _selected;
+                      return HoverBox(
+                        theme: t,
                         onTap: () => Navigator.of(context).pop(SwitcherChoice.open(matches[i])),
+                        builder: (hot) {
+                          final on = hot || selected;
+                          return Container(
+                            color: selected && !hot ? t.accent : null,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Row(children: [
+                              Expanded(
+                                child: Text(name,
+                                    overflow: TextOverflow.ellipsis, style: TextStyle(color: on ? Colors.black : t.text)),
+                              ),
+                              if (folder.isNotEmpty)
+                                Text(folder, style: TextStyle(color: on ? Colors.black : t.faint)),
+                            ]),
+                          );
+                        },
                       );
                     },
                   ),

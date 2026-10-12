@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../editor/org_theme.dart';
 import '../org/agenda.dart';
 import '../org/timestamp.dart';
+import 'pixel_widgets.dart';
 
 const _monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -41,6 +42,16 @@ class _AgendaPageState extends State<AgendaPage> {
     super.dispose();
   }
 
+  Widget _textButton(String label, String tip, VoidCallback onTap) => HoverBox(
+        theme: widget.theme,
+        onTap: onTap,
+        tooltip: tip,
+        builder: (hot) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Text(label, style: TextStyle(color: hot ? Colors.black : widget.theme.accent)),
+        ),
+      );
+
   Future<void> _cycle(AgendaItem item) async {
     await widget.onCycleTodo(item);
     if (mounted) setState(() {});
@@ -51,9 +62,17 @@ class _AgendaPageState extends State<AgendaPage> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
+        backgroundColor: widget.theme.background,
         appBar: AppBar(
-          title: const Text('Agenda'),
-          bottom: const TabBar(tabs: [Tab(text: 'Week'), Tab(text: 'TODO list'), Tab(text: 'Search')]),
+          title: const Text('*Org Agenda*'),
+          leading: _textButton('<', 'Back', () => Navigator.of(context).maybePop()),
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(24),
+            child: SizedBox(
+              height: 24,
+              child: TabBar(tabs: [Tab(text: 'Week'), Tab(text: 'TODO list'), Tab(text: 'Search')]),
+            ),
+          ),
         ),
         body: TabBarView(children: [_weekView(), _todoView(), _searchView()]),
       ),
@@ -72,10 +91,7 @@ class _AgendaPageState extends State<AgendaPage> {
         child: Text(
           '${_dayNames[d.date.weekday - 1]} ${d.date.day} ${_monthNames[d.date.month - 1]} ${d.date.year}'
           '${isToday ? '  ·  today' : ''}',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: isToday ? widget.theme.accent : null,
-          ),
+          style: TextStyle(color: isToday ? widget.theme.accent : widget.theme.levels[1]),
         ),
       ));
       for (final item in d.items) {
@@ -86,20 +102,9 @@ class _AgendaPageState extends State<AgendaPage> {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(children: [
-          IconButton(
-            tooltip: 'Previous',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => setState(() => _weekStart = addDays(_weekStart, -_span)),
-          ),
-          TextButton(
-            onPressed: () => setState(() => _weekStart = _span == 1 ? today : _mondayOf(today)),
-            child: const Text('Today'),
-          ),
-          IconButton(
-            tooltip: 'Next',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: () => setState(() => _weekStart = addDays(_weekStart, _span)),
-          ),
+          _textButton('<', 'Previous', () => setState(() => _weekStart = addDays(_weekStart, -_span))),
+          _textButton('today', 'Today', () => setState(() => _weekStart = _span == 1 ? today : _mondayOf(today))),
+          _textButton('>', 'Next', () => setState(() => _weekStart = addDays(_weekStart, _span))),
           const SizedBox(width: 8),
           Text(_span == 1
               ? '${_weekStart.day} ${_monthNames[_weekStart.month - 1]}'
@@ -137,7 +142,7 @@ class _AgendaPageState extends State<AgendaPage> {
         child: TextField(
           controller: _searchCtrl,
           autofocus: false,
-          decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Words, :tags: or keywords'),
+          decoration: const InputDecoration(hintText: 'Words, :tags: or keywords'),
           onChanged: (v) => setState(() => _search = v),
         ),
       ),
@@ -153,38 +158,39 @@ class _AgendaPageState extends State<AgendaPage> {
       AgendaKind.overdueScheduled => t.priority,
       _ => t.faint,
     };
-    return InkWell(
+    return HoverBox(
+      theme: t,
       onTap: () => Navigator.of(context).pop(item),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      builder: (hot) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
           SizedBox(
             width: 120,
             child: Text(
               item.sourceName,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: t.faint, fontSize: 12),
+              style: TextStyle(color: hot ? Colors.black : t.faint),
             ),
           ),
           if (showTime)
             SizedBox(
               width: 96,
-              child: Text(item.time ?? '', style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+              child: Text(item.time ?? '', style: TextStyle(color: hot ? Colors.black : t.text)),
             ),
           if (showTime)
             SizedBox(
               width: 92,
-              child: Text(item.label, style: TextStyle(color: labelColor, fontSize: 13)),
+              child: Text(item.label, style: TextStyle(color: hot ? Colors.black : labelColor)),
             ),
           if (item.keyword != null) ...[
             Text(
               item.keyword!,
-              style: TextStyle(fontWeight: FontWeight.w800, color: item.done ? t.done : t.todo),
+              style: TextStyle(fontWeight: FontWeight.w700, color: hot ? Colors.black : (item.done ? t.done : t.todo)),
             ),
             const SizedBox(width: 8),
           ],
           if (item.priority != null) ...[
-            Text('[#${item.priority}]', style: TextStyle(color: t.priority, fontWeight: FontWeight.w700)),
+            Text('[#${item.priority}]', style: TextStyle(color: hot ? Colors.black : t.priority)),
             const SizedBox(width: 8),
           ],
           Expanded(
@@ -192,7 +198,7 @@ class _AgendaPageState extends State<AgendaPage> {
               item.title,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: item.done ? t.faint : null,
+                color: hot ? Colors.black : (item.done ? t.faint : t.text),
                 decoration: item.done ? TextDecoration.lineThrough : null,
               ),
             ),
@@ -200,13 +206,10 @@ class _AgendaPageState extends State<AgendaPage> {
           if (item.tags.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 8),
-              child: Text(':${item.tags.join(':')}:', style: TextStyle(color: t.tag, fontSize: 12)),
+              child: Text(':${item.tags.join(':')}:', style: TextStyle(color: hot ? Colors.black : t.tag)),
             ),
-          IconButton(
-            tooltip: 'Cycle TODO state',
-            icon: Icon(item.done ? Icons.check_circle : Icons.radio_button_unchecked, size: 20),
-            onPressed: () => _cycle(item),
-          ),
+          const SizedBox(width: 8),
+          _textButton(item.done ? '[x]' : '[ ]', 'Cycle TODO state', () => _cycle(item)),
         ]),
       ),
     );

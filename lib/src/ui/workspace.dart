@@ -20,6 +20,7 @@ import 'dialogs.dart';
 import 'file_tree.dart';
 import 'help.dart';
 import 'outline_panel.dart';
+import 'pixel_widgets.dart';
 import 'quick_switcher.dart';
 import 'settings_dialog.dart';
 import 'tutorial.dart';
@@ -56,6 +57,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   final TextEditingController _findCtrl = TextEditingController();
   final TextEditingController _replaceCtrl = TextEditingController();
   final FocusNode _findFocus = FocusNode(debugLabel: 'find');
+  final FocusNode _dashFocus = FocusNode(debugLabel: 'dashboard');
   String _findStatus = '';
 
   late final AppLifecycleListener _lifecycle;
@@ -87,6 +89,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     _findCtrl.dispose();
     _replaceCtrl.dispose();
     _findFocus.dispose();
+    _dashFocus.dispose();
     super.dispose();
   }
 
@@ -112,13 +115,10 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     for (final f in widget.initialFiles) {
       if (!FileSystemEntity.isDirectorySync(f)) await openPath(f);
     }
-    if (docs.isEmpty && vault == null) {
-      if (!settings.tutorialShown) {
-        _addDoc(_newDoc(tutorialText));
-        settings.update((s) => s.tutorialShown = true);
-      } else {
-        _addDoc(_newDoc(''));
-      }
+    // Otherwise the dashboard shows, as in Doom Emacs.
+    if (docs.isEmpty && vault == null && !settings.tutorialShown) {
+      _addDoc(_newDoc(tutorialText));
+      settings.update((s) => s.tutorialShown = true);
     }
   }
 
@@ -154,7 +154,12 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
 
   void _focusEditor() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      doc?.focusNode.requestFocus();
+      final d = doc;
+      if (d != null) {
+        d.focusNode.requestFocus();
+      } else {
+        _dashFocus.requestFocus();
+      }
     });
   }
 
@@ -290,7 +295,6 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       if (current < 0) current = 0;
     });
     _disposeDoc(d);
-    if (docs.isEmpty && vault == null) newDocument();
     _focusEditor();
     _saveVaultState();
   }
@@ -421,6 +425,10 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           final name = await showTextPrompt(context, title: 'New folder', initial: 'New folder', label: 'Name');
           if (name == null || name.isEmpty) return;
           await v.createFolder(target.path, name);
+        case TreeAction.collapse:
+          v.collapseAll();
+        case TreeAction.refresh:
+          await v.scan();
         case TreeAction.rename:
           final oldName = target.isDir ? target.name : stripNoteExtension(target.name);
           final name = await showTextPrompt(context, title: 'Rename', initial: oldName, label: 'Name');
@@ -663,9 +671,11 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   }
 
   Future<void> _openAgenda() async {
-    final theme = settings.orgTheme(Theme.of(context).brightness);
-    final item = await Navigator.of(context).push<AgendaItem>(MaterialPageRoute(
-      builder: (_) => AgendaPage(
+    final theme = settings.orgTheme;
+    final item = await Navigator.of(context).push<AgendaItem>(PageRouteBuilder(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (context, animation, secondary) => AgendaPage(
         sources: _agendaSources,
         theme: theme,
         onCycleTodo: (item) async {
@@ -772,8 +782,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final orgTheme = settings.orgTheme(brightness);
+    final orgTheme = settings.orgTheme;
     if (!identical(highlighter.theme, orgTheme)) {
       highlighter.theme = orgTheme;
       highlighter.clearCache();
@@ -792,15 +801,17 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       highlighter.clearCache();
     }
 
+    final t = orgTheme;
     final d = doc;
     final v = vault;
+    final line = Container(width: 1, color: t.border);
     return Scaffold(
-      backgroundColor: orgTheme.background,
+      backgroundColor: t.background,
       body: CallbackShortcuts(
         bindings: _shortcuts,
         child: Column(children: [
-          _menuBar(context),
-          _tabBar(context, orgTheme),
+          _menuBar(context, t),
+          if (docs.isNotEmpty) _tabBar(context, t),
           Expanded(
             child: Row(children: [
               if (v != null && settings.showFiles) ...[
@@ -808,17 +819,17 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
                   width: 260,
                   child: FileTreePanel(
                     vault: v,
-                    theme: orgTheme,
+                    theme: t,
                     activePath: d?.path,
                     onOpen: (p) => openPath(p),
                     onAction: _treeAction,
                   ),
                 ),
-                const VerticalDivider(width: 1),
+                line,
               ],
               Expanded(
                 child: docs.isEmpty
-                    ? _emptyState(context, orgTheme)
+                    ? _dashboard(context, t)
                     : IndexedStack(
                         index: current.clamp(0, docs.length - 1),
                         children: [
@@ -828,49 +839,141 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
                       ),
               ),
               if (settings.showOutline && d != null) ...[
-                const VerticalDivider(width: 1),
+                line,
                 SizedBox(
                   width: 270,
                   child: OutlinePanel(
                     doc: d,
-                    theme: orgTheme,
+                    theme: t,
                     onJump: (line) => editor?.jumpToLine(line),
                   ),
                 ),
               ],
             ]),
           ),
-          if (_findVisible) _findBar(context),
-          _statusBar(context, orgTheme),
+          _modeLine(context, t),
+          _findVisible ? _findBar(context, t) : _echoArea(t),
         ]),
       ),
     );
   }
 
-  Widget _emptyState(BuildContext context, OrgTheme t) {
+  // -------------------------------------------------------------------------
+  // Dashboard, shown when nothing is open
+  // -------------------------------------------------------------------------
+
+  static const _banner = '▄▀▀▀▄ █▀▀▀▄ ▄▀▀▀▄ █▀▀▀▄ ▄▀▀▀▄ █▀▀▀▄\n'
+      '█   █ █▄▄▄▀ █ ▄▄▄ █▄▄▄▀ █▄▄▄█ █   █\n'
+      '█   █ █ ▀▄  █   █ █     █   █ █   █\n'
+      ' ▀▀▀  ▀   ▀  ▀▀▀  ▀     ▀   ▀ ▀▀▀▀';
+
+  List<(String, String, String, VoidCallback)> get _dashItems {
     final v = vault;
-    return Center(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(v == null ? 'No file open' : v.name, style: TextStyle(fontSize: 20, color: t.faint)),
-        const SizedBox(height: 16),
-        Wrap(spacing: 12, runSpacing: 12, alignment: WrapAlignment.center, children: [
-          FilledButton.tonal(onPressed: newDocument, child: const Text('New note  (Ctrl+N)')),
-          if (v != null) FilledButton.tonal(onPressed: quickSwitch, child: const Text('Find note  (Ctrl+P)')),
-          if (v == null) FilledButton.tonal(onPressed: openVaultDialog, child: const Text('Open folder…')),
-          FilledButton.tonal(onPressed: openDialog, child: const Text('Open file…  (Ctrl+O)')),
-        ]),
-      ]),
+    return [
+      ('n', v == null ? 'New file' : 'New note', 'Ctrl+N', newDocument),
+      if (v != null) ('p', 'Find note', 'Ctrl+P', quickSwitch),
+      ('o', 'Open file', 'Ctrl+O', openDialog),
+      ('f', v == null ? 'Open folder as vault' : 'Open another folder', '', openVaultDialog),
+      if (v != null || settings.agendaFiles.isNotEmpty) ('a', 'Agenda', 'C-c a', _openAgenda),
+      ('t', 'Tutorial', '', () => _addDoc(_newDoc(tutorialText))),
+      ('s', 'Settings', '', () => showSettingsDialog(context, settings)),
+    ];
+  }
+
+  Widget _dashboard(BuildContext context, OrgTheme t) {
+    final items = _dashItems;
+    final recent = settings.recentFiles.where((f) => File(f).existsSync()).take(5).toList();
+    final v = vault;
+    final base = TextStyle(fontFamily: pixelFont, fontSize: pixelSize, height: 1.25, color: t.text);
+
+    Widget row(String key, String label, String hint, VoidCallback onTap) => HoverBox(
+          theme: t,
+          onTap: onTap,
+          builder: (hot) => Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('[$key]', style: base.copyWith(color: hot ? Colors.black : t.accent)),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 280,
+              child: Text(label, overflow: TextOverflow.ellipsis, style: base.copyWith(color: hot ? Colors.black : t.text)),
+            ),
+            SizedBox(
+              width: 96,
+              child: Text(hint, textAlign: TextAlign.right, style: base.copyWith(color: hot ? Colors.black : t.faint)),
+            ),
+          ]),
+        );
+
+    return Focus(
+      focusNode: _dashFocus,
+      autofocus: true,
+      onKeyEvent: (node, e) {
+        if (e is! KeyDownEvent) return KeyEventResult.ignored;
+        final keys = HardwareKeyboard.instance;
+        if (keys.isControlPressed || keys.isAltPressed || keys.isMetaPressed) return KeyEventResult.ignored;
+        final ch = e.character?.toLowerCase();
+        if (ch == null) return KeyEventResult.ignored;
+        for (final (k, _, _, run) in items) {
+          if (k == ch) {
+            run();
+            return KeyEventResult.handled;
+          }
+        }
+        final n = int.tryParse(ch);
+        if (n != null && n >= 1 && n <= recent.length) {
+          openPath(recent[n - 1]);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _dashFocus.requestFocus,
+        child: ColoredBox(
+          color: t.background,
+          child: LayoutBuilder(builder: (context, c) {
+            final big = c.maxWidth > 760 && c.maxHeight > 620;
+            return Center(
+              child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(_banner, style: base.copyWith(color: t.accent, height: 1.0, fontSize: big ? 2 * pixelSize : pixelSize)),
+                  const SizedBox(height: 12),
+                  Text(
+                    v == null ? 'plain text, org mode' : 'vault: ${v.name}',
+                    style: base.copyWith(color: t.faint),
+                  ),
+                  const SizedBox(height: 28),
+                  for (final (k, label, hint, run) in items) row(k, label, hint, run),
+                  if (recent.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: 432,
+                      child: Text('Recent files', style: base.copyWith(color: t.levels[1])),
+                    ),
+                    const SizedBox(height: 4),
+                    for (var i = 0; i < recent.length; i++)
+                      row('${i + 1}', baseName(recent[i]), '', () => openPath(recent[i])),
+                  ],
+                  const SizedBox(height: 28),
+                  Text('OrgPad 0.2', style: base.copyWith(color: t.faint)),
+                ]),
+              ),
+            );
+          }),
+        ),
+      ),
     );
   }
 
-  Widget _menuBar(BuildContext context) {
+  // -------------------------------------------------------------------------
+  // Menu bar and tabs
+  // -------------------------------------------------------------------------
+
+  Widget _menuBar(BuildContext context, OrgTheme t) {
     MenuItemButton item(String label, VoidCallback? onPressed, {MenuSerializableShortcut? shortcut, String? hint}) {
       return MenuItemButton(
         onPressed: onPressed,
         shortcut: shortcut,
-        trailingIcon: hint == null
-            ? null
-            : Text(hint, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.outline)),
+        trailingIcon: hint == null ? null : Opacity(opacity: 0.6, child: Text(hint)),
         child: Text(label),
       );
     }
@@ -878,15 +981,11 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final hasDoc = doc != null;
     VoidCallback? cmd(String id) => hasDoc ? () => _command(id) : null;
 
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainer,
+    return DecoratedBox(
+      decoration: BoxDecoration(color: t.panel, border: Border(bottom: BorderSide(color: t.border))),
       child: Row(children: [
         Expanded(
           child: MenuBar(
-            style: const MenuStyle(
-              elevation: WidgetStatePropertyAll(0),
-              backgroundColor: WidgetStatePropertyAll(Colors.transparent),
-            ),
             children: [
               SubmenuButton(menuChildren: [
                 item(vault == null ? 'New file' : 'New note', newDocument,
@@ -980,7 +1079,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
                 item('Insert link…', cmd('link'), hint: 'C-c C-l'),
                 item('Open link', cmd('openLink'), hint: 'C-c C-o'),
                 const Divider(height: 1),
-                item('Agenda', hasDoc ? _openAgenda : null, hint: 'C-c a'),
+                item('Agenda', hasDoc || vault != null ? _openAgenda : null, hint: 'C-c a'),
               ], child: const Text('Org')),
               SubmenuButton(menuChildren: [
                 item(settings.showFiles ? 'Hide files' : 'Show files',
@@ -989,16 +1088,19 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
                 item(settings.showOutline ? 'Hide outline' : 'Show outline',
                     () => settings.update((s) => s.showOutline = !s.showOutline),
                     shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true, shift: true)),
+                item(settings.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
+                    () => settings.update((s) => s.lineNumbers = !s.lineNumbers)),
                 item('Zoom in', () => _zoom(1), shortcut: const SingleActivator(LogicalKeyboardKey.equal, control: true)),
                 item('Zoom out', () => _zoom(-1), shortcut: const SingleActivator(LogicalKeyboardKey.minus, control: true)),
                 item('Reset zoom', () => _zoom(0), shortcut: const SingleActivator(LogicalKeyboardKey.digit0, control: true)),
                 const Divider(height: 1),
+                item('Dashboard', docs.isEmpty ? null : _showDashboard),
                 item('Settings…', () => showSettingsDialog(context, settings)),
               ], child: const Text('View')),
               SubmenuButton(menuChildren: [
                 item('Keyboard shortcuts', () => showKeyBindings(context)),
                 item('Tutorial', () => _addDoc(_newDoc(tutorialText))),
-                item('About', () => showInfo(context, 'OrgPad', 'A plain text editor built on Org mode.\nProof of concept, version 0.1.')),
+                item('About', () => showInfo(context, 'OrgPad', 'A plain text editor built on Org mode.\nVersion 0.2.')),
               ], child: const Text('Help')),
             ],
           ),
@@ -1007,11 +1109,20 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     );
   }
 
+  /// Closes every tab (asking to save) to get back to the dashboard.
+  Future<void> _showDashboard() async {
+    for (final d in [...docs]) {
+      final i = docs.indexOf(d);
+      if (i < 0) continue;
+      await closeTab(i);
+      if (docs.contains(d)) return;
+    }
+  }
+
   Widget _tabBar(BuildContext context, OrgTheme t) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
-      height: 36,
-      color: scheme.surfaceContainer,
+      height: 24,
+      decoration: BoxDecoration(color: t.panel, border: Border(bottom: BorderSide(color: t.border))),
       child: Row(children: [
         Expanded(
           child: ListView(
@@ -1021,31 +1132,15 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
             ],
           ),
         ),
-        IconButton(
-          tooltip: 'New note',
-          visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.add, size: 18),
-          onPressed: newDocument,
+        HoverBox(
+          theme: t,
+          onTap: newDocument,
+          tooltip: vault == null ? 'New file' : 'New note',
+          builder: (hot) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text('+', style: TextStyle(color: hot ? Colors.black : t.accent)),
+          ),
         ),
-        IconButton(
-          tooltip: vault == null ? 'Open folder' : 'Files',
-          visualDensity: VisualDensity.compact,
-          icon: Icon(vault == null ? Icons.folder_open_outlined : Icons.folder_outlined, size: 18),
-          onPressed: vault == null ? openVaultDialog : () => settings.update((s) => s.showFiles = !s.showFiles),
-        ),
-        IconButton(
-          tooltip: 'Agenda',
-          visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.calendar_month, size: 18),
-          onPressed: docs.isEmpty ? null : _openAgenda,
-        ),
-        IconButton(
-          tooltip: 'Outline',
-          visualDensity: VisualDensity.compact,
-          icon: Icon(settings.showOutline ? Icons.view_sidebar : Icons.view_sidebar_outlined, size: 18),
-          onPressed: () => settings.update((s) => s.showOutline = !s.showOutline),
-        ),
-        const SizedBox(width: 4),
       ]),
     );
   }
@@ -1053,148 +1148,73 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   Widget _tab(BuildContext context, int i, OrgTheme t) {
     final d = docs[i];
     final selected = i == current;
-    final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: d.path ?? 'Not saved yet',
-      waitDuration: const Duration(milliseconds: 600),
-      child: InkWell(
+      child: GestureDetector(
         onTap: () => _selectTab(i),
-        child: Container(
-          padding: const EdgeInsets.only(left: 14, right: 4),
-          decoration: BoxDecoration(
-            color: selected ? t.background : Colors.transparent,
-            border: Border(
-              top: BorderSide(color: selected ? t.accent : Colors.transparent, width: 2),
-            ),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(
-              d.name,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: selected ? t.text : scheme.onSurfaceVariant,
+        onTertiaryTapUp: (_) => closeTab(i),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            padding: const EdgeInsets.only(left: 10),
+            decoration: BoxDecoration(
+              color: selected ? t.background : t.panel,
+              border: Border(
+                top: BorderSide(color: selected ? t.accent : t.panel, width: 2),
+                right: BorderSide(color: t.border),
               ),
             ),
-            if (d.dirty) Text('  •', style: TextStyle(color: t.accent, fontWeight: FontWeight.w900)),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              iconSize: 14,
-              tooltip: 'Close',
-              icon: const Icon(Icons.close),
-              onPressed: () => closeTab(i),
-            ),
-          ]),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(d.name, style: TextStyle(color: selected ? t.accent : t.faint)),
+              if (d.dirty) Text(' ●', style: TextStyle(color: t.accent)),
+              const SizedBox(width: 6),
+              HoverBox(
+                theme: t,
+                onTap: () => closeTab(i),
+                tooltip: 'Close (Ctrl+W)',
+                builder: (hot) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text('×', style: TextStyle(color: hot ? Colors.black : t.faint)),
+                ),
+              ),
+            ]),
+          ),
         ),
       ),
     );
   }
 
-  Widget _findBar(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Focus(
-      onKeyEvent: (node, e) {
-        if (e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
-          _hideFind();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Container(
-        color: scheme.surfaceContainer,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _findCtrl,
-                focusNode: _findFocus,
-                decoration: const InputDecoration(isDense: true, hintText: 'Find', border: OutlineInputBorder()),
-                onChanged: (_) => _find(forward: true, incremental: true),
-                onEditingComplete: () {},
-                onSubmitted: (_) => _find(forward: true),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(width: 90, child: Text(_findStatus, style: TextStyle(color: scheme.outline, fontSize: 12))),
-            IconButton(
-              tooltip: 'Match case',
-              isSelected: _caseSensitive,
-              icon: const Icon(Icons.text_fields),
-              onPressed: () => setState(() => _caseSensitive = !_caseSensitive),
-            ),
-            IconButton(
-              tooltip: 'Previous',
-              icon: const Icon(Icons.keyboard_arrow_up),
-              onPressed: () => _find(forward: false),
-            ),
-            IconButton(
-              tooltip: 'Next',
-              icon: const Icon(Icons.keyboard_arrow_down),
-              onPressed: () => _find(forward: true),
-            ),
-            IconButton(
-              tooltip: 'Replace',
-              icon: const Icon(Icons.find_replace),
-              onPressed: () => setState(() => _replaceVisible = !_replaceVisible),
-            ),
-            IconButton(tooltip: 'Close', icon: const Icon(Icons.close), onPressed: _hideFind),
-          ]),
-          if (_replaceVisible)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _replaceCtrl,
-                    decoration: const InputDecoration(isDense: true, hintText: 'Replace with', border: OutlineInputBorder()),
-                    onEditingComplete: () {},
-                    onSubmitted: (_) => editor?.replaceCurrent(_findCtrl.text, _replaceCtrl.text, caseSensitive: _caseSensitive),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => editor?.replaceCurrent(_findCtrl.text, _replaceCtrl.text, caseSensitive: _caseSensitive),
-                  child: const Text('Replace'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    final n = editor?.replaceAll(_findCtrl.text, _replaceCtrl.text, caseSensitive: _caseSensitive) ?? 0;
-                    showMessage('Replaced $n occurrence${n == 1 ? '' : 's'}');
-                  },
-                  child: const Text('Replace all'),
-                ),
-              ]),
-            ),
-        ]),
-      ),
-    );
-  }
+  // -------------------------------------------------------------------------
+  // Mode line, echo area and the find prompt
+  // -------------------------------------------------------------------------
 
-  Widget _statusBar(BuildContext context, OrgTheme t) {
-    final scheme = Theme.of(context).colorScheme;
+  Widget _modeLine(BuildContext context, OrgTheme t) {
     final d = doc;
-    final style = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
+    final v = vault;
+    final style = TextStyle(color: t.text);
+    final faint = TextStyle(color: t.faint);
     return Container(
-      height: 26,
-      color: scheme.surfaceContainer,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 24,
+      decoration: BoxDecoration(color: t.panel, border: Border(top: BorderSide(color: t.border))),
       child: Row(children: [
-        if (_prefix)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            margin: const EdgeInsets.only(right: 10),
-            decoration: BoxDecoration(color: t.markerBg, borderRadius: BorderRadius.circular(4)),
-            child: Text('C-c –', style: style.copyWith(color: t.markerFg, fontWeight: FontWeight.w700)),
+        Container(width: 4, color: t.accent),
+        const SizedBox(width: 8),
+        if (d == null)
+          Expanded(child: Text(v == null ? '*dashboard*' : '*dashboard*  ${v.name}', style: style))
+        else ...[
+          Text(d.dirty ? '●' : '○', style: TextStyle(color: d.dirty ? t.accent : t.faint)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Tooltip(
+              message: d.path ?? 'Not saved yet',
+              child: Text(
+                d.path != null && v != null && v.contains(d.path!) ? stripNoteExtension(v.relative(d.path!)) : d.name,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: t.bright, fontWeight: FontWeight.w700),
+              ),
+            ),
           ),
-        Expanded(
-          child: Text(
-            _message ?? (d?.path ?? (d == null ? '' : 'Not saved yet')),
-            overflow: TextOverflow.ellipsis,
-            style: style,
-          ),
-        ),
-        if (d != null)
+          const SizedBox(width: 16),
           ListenableBuilder(
             listenable: d.controller,
             builder: (context, _) {
@@ -1204,10 +1224,109 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
               final off = sel.isValid ? sel.extentOffset.clamp(0, a.text.length) : 0;
               final line = a.lineOfOffset(off);
               final col = off - a.lineStarts[line];
-              return Text('Ln ${line + 1}, Col ${col + 1}   ${_words(a)} words', style: style);
+              return Text('${line + 1}:$col', style: faint);
             },
           ),
+          const Spacer(),
+          if (v != null) ...[Text(v.name, style: faint), const SizedBox(width: 16)],
+          ListenableBuilder(
+            listenable: d.controller,
+            builder: (context, _) => Text('${_words(d.controller.analysis)}w', style: faint),
+          ),
+          const SizedBox(width: 16),
+          Text(d.usesCrlf ? 'CRLF' : 'LF', style: faint),
+          const SizedBox(width: 8),
+          Text('UTF-8', style: faint),
+          const SizedBox(width: 16),
+          Text('Org', style: TextStyle(color: t.accent, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 10),
+        ],
       ]),
+    );
+  }
+
+  Widget _echoArea(OrgTheme t) {
+    return Container(
+      height: 22,
+      color: t.background,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: Alignment.centerLeft,
+      child: _prefix
+          ? Text('C-c-', style: TextStyle(color: t.accent))
+          : Text(_message ?? '', overflow: TextOverflow.ellipsis, style: TextStyle(color: t.text)),
+    );
+  }
+
+  Widget _findBar(BuildContext context, OrgTheme t) {
+    Widget button(String label, String tip, VoidCallback onTap, {bool on = false}) => HoverBox(
+          theme: t,
+          onTap: onTap,
+          tooltip: tip,
+          builder: (hot) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(label, style: TextStyle(color: hot ? Colors.black : (on ? t.accent : t.faint))),
+          ),
+        );
+
+    Widget field(TextEditingController ctrl, {FocusNode? focus, ValueChanged<String>? onChanged, required ValueChanged<String> onSubmitted}) {
+      return Expanded(
+        child: TextField(
+          controller: ctrl,
+          focusNode: focus,
+          style: TextStyle(color: t.text),
+          decoration: const InputDecoration.collapsed(hintText: '', filled: false),
+          onChanged: onChanged,
+          onEditingComplete: () {},
+          onSubmitted: onSubmitted,
+        ),
+      );
+    }
+
+    void replaceOne() => editor?.replaceCurrent(_findCtrl.text, _replaceCtrl.text, caseSensitive: _caseSensitive);
+
+    return Focus(
+      onKeyEvent: (node, e) {
+        if (e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
+          _hideFind();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Container(
+        color: t.background,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Text('I-search: ', style: TextStyle(color: t.accent)),
+            field(
+              _findCtrl,
+              focus: _findFocus,
+              onChanged: (_) => _find(forward: true, incremental: true),
+              onSubmitted: (_) => _find(forward: true),
+            ),
+            Text(_findStatus, style: TextStyle(color: t.faint)),
+            const SizedBox(width: 8),
+            button('Aa', 'Match case', () => setState(() => _caseSensitive = !_caseSensitive), on: _caseSensitive),
+            button('<', 'Previous', () => _find(forward: false)),
+            button('>', 'Next (Enter)', () => _find(forward: true)),
+            button('replace', 'Replace', () => setState(() => _replaceVisible = !_replaceVisible), on: _replaceVisible),
+            button('×', 'Close (Esc)', _hideFind),
+          ]),
+          if (_replaceVisible)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Row(children: [
+                Text('Replace with: ', style: TextStyle(color: t.accent)),
+                field(_replaceCtrl, onSubmitted: (_) => replaceOne()),
+                button('this', 'Replace this match', replaceOne),
+                button('all', 'Replace all', () {
+                  final n = editor?.replaceAll(_findCtrl.text, _replaceCtrl.text, caseSensitive: _caseSensitive) ?? 0;
+                  showMessage('Replaced $n occurrence${n == 1 ? '' : 's'}');
+                }),
+              ]),
+            ),
+        ]),
+      ),
     );
   }
 

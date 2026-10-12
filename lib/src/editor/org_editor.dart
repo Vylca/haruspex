@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -77,15 +78,26 @@ class _LinePainter extends CustomPainter {
   final int index;
 
   @override
-  void paint(Canvas canvas, Size size) => s._paintLine(canvas, index);
+  void paint(Canvas canvas, Size size) => s._paintLine(canvas, index, size);
 
   @override
   bool shouldRepaint(covariant _LinePainter old) => true;
 }
 
 class OrgEditorState extends State<OrgEditor> with TextInputClient {
-  static const double _vpad = 18;
+  static const double _vpad = 8;
   static const double _caretWidth = 2;
+
+  /// Space between the line numbers and the text.
+  static const double _gutterGap = 12;
+
+  /// Line height as a multiple of the font size, rounded to whole pixels with
+  /// the same spacing above and below the text.
+  static double _snappedLineHeight(double fontSize, double lineHeight) {
+    if (fontSize <= 0) return lineHeight;
+    final extra = ((fontSize * lineHeight - fontSize) / 2).round();
+    return (fontSize + 2 * math.max<int>(0, extra)) / fontSize;
+  }
 
   bool _prefix = false;
 
@@ -123,10 +135,12 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
   List<double> _tops = const [];
   double _totalHeight = 0;
   double _hpad = 20;
+  double _rpad = 20;
+  final Map<String, TextPainter> _gutterCache = {};
   double _textWidth = 600;
   int _caretIndex = -1;
   TextStyle _baseStyle = const TextStyle();
-  OrgTheme _theme = OrgTheme.light;
+  OrgTheme _theme = OrgTheme.hev;
   TextScaler _textScaler = TextScaler.noScaling;
   double _caretRatio = 1.0;
   String _styleSig = '';
@@ -183,6 +197,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     _blink?.cancel();
     _caretOn.dispose();
     _cache.clear();
+    _clearGutterCache();
     super.dispose();
   }
 
@@ -232,11 +247,12 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     if (mounted) setState(() {});
   }
 
+  /// The caret stays lit while the editor has focus (no blinking, like Doom
+  /// Emacs).
   void _restartBlink() {
     _blink?.cancel();
     if (!doc.focusNode.hasFocus) return;
     _caretOn.value = true;
-    _blink = Timer.periodic(const Duration(milliseconds: 530), (_) => _caretOn.value = !_caretOn.value);
   }
 
   // -------------------------------------------------------------------------
@@ -517,7 +533,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
   // Painting
   // -------------------------------------------------------------------------
 
-  void _paintLine(Canvas canvas, int k) {
+  void _paintLine(Canvas canvas, int k, Size size) {
     if (k >= _layouts.length || k >= _visible.length) return;
     final an = a;
     final line = _visible[k];
@@ -527,6 +543,14 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     final len = an.lines[line].length;
     final dx = lay.indent;
     final sel = c.selection;
+    final isCaretLine = k == _caretIndex;
+
+    // Current line highlight across the whole width (hl-line).
+    if (isCaretLine && doc.focusNode.hasFocus) {
+      canvas.drawRect(Rect.fromLTRB(-_hpad, 0, size.width + _rpad, lay.height), Paint()..color = _theme.hlLine);
+    }
+
+    if (widget.settings.lineNumbers) _paintLineNumber(canvas, lay, line, isCaretLine);
 
     if (sel.isValid && !sel.isCollapsed) {
       final s0 = sel.start - start, s1 = sel.end - start;
@@ -534,13 +558,18 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
         final paint = Paint()..color = _theme.selection;
         final from = s0.clamp(0, len), to = s1.clamp(0, len);
         if (to > from) {
-          for (final b in lay.painter.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: to))) {
+          final boxes = lay.painter.getBoxesForSelection(
+            TextSelection(baseOffset: from, extentOffset: to),
+            boxHeightStyle: ui.BoxHeightStyle.max,
+          );
+          for (final b in boxes) {
             canvas.drawRect(b.toRect().shift(Offset(dx, 0)), paint);
           }
         }
         if (s1 > len) {
           final end = _caretIn(lay, len, len);
-          canvas.drawRect(Rect.fromLTWH(dx + end.center.dx, end.top, 7, end.height), paint);
+          final (top, bottom) = _caretLine(lay, len, len);
+          canvas.drawRect(Rect.fromLTRB(dx + end.center.dx, top, dx + end.center.dx + 8, bottom), paint);
         }
       }
     }
@@ -564,22 +593,12 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     }
 
     if (c.hasFoldMarker(line)) {
+      // Folded: an org-ellipsis after the text.
       final end = _caretIn(lay, len, len);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '…',
-          style: TextStyle(color: _theme.markerFg, fontSize: 12, fontWeight: FontWeight.w700, height: 1.0),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final w = tp.width + 12, ph = tp.height + 4;
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(dx + end.center.dx + 8, end.center.dy - ph / 2, w, ph),
-        Radius.circular(ph / 2),
-      );
-      canvas.drawRRect(rect, Paint()..color = _theme.markerBg);
-      tp.paint(canvas, Offset(rect.left + 6, rect.top + 2));
-      tp.dispose();
+      final tp = _gutterPainter('fold', ' \u25BE', _theme.accent);
+      final (top, bottom) = _caretLine(lay, len, len);
+      final y = ((top + bottom - tp.height) / 2).roundToDouble();
+      tp.paint(canvas, Offset((dx + end.center.dx).roundToDouble(), y));
     }
 
     if (doc.focusNode.hasFocus && _caretOn.value && sel.isValid) {
@@ -588,6 +607,46 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
         canvas.drawRect(_caretIn(lay, o, len).shift(Offset(dx, 0)), Paint()..color = _theme.accent);
       }
     }
+  }
+
+  /// Line number right-aligned in the gutter, on the baseline of the line's
+  /// first row.
+  void _paintLineNumber(Canvas canvas, LineLayout lay, int line, bool current) {
+    final tp = _gutterPainter('n${line + 1}|$current', '${line + 1}', current ? _theme.accent : _theme.faint);
+    final ms = lay.metrics;
+    var y = 0.0;
+    if (ms.isNotEmpty) {
+      y = ms.first.baseline - tp.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    }
+    tp.paint(canvas, Offset(-_gutterGap - tp.width, y.roundToDouble()));
+  }
+
+  /// Small painters for the gutter and fold markers, kept between frames.
+  TextPainter _gutterPainter(String key, String text, Color color) {
+    final cached = _gutterCache[key];
+    if (cached != null) return cached;
+    if (_gutterCache.length > 4000) _clearGutterCache();
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: _baseStyle.copyWith(color: color)),
+      textDirection: TextDirection.ltr,
+      textScaler: _textScaler,
+    )..layout();
+    _gutterCache[key] = tp;
+    return tp;
+  }
+
+  void _clearGutterCache() {
+    for (final p in _gutterCache.values) {
+      p.dispose();
+    }
+    _gutterCache.clear();
+  }
+
+  /// Width of the line number column.
+  double _gutterWidth(int lineCount) {
+    final digits = math.max<int>(3, '$lineCount'.length);
+    final w = _gutterPainter('digit', '0', _theme.faint).width;
+    return (digits * w + 12).ceilToDouble();
   }
 
   // -------------------------------------------------------------------------
@@ -1785,11 +1844,11 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
   @override
   Widget build(BuildContext context) {
     final s = widget.settings;
-    _theme = s.orgTheme(Theme.of(context).brightness);
+    _theme = s.orgTheme;
     _textScaler = MediaQuery.textScalerOf(context);
     _baseStyle = TextStyle(
       fontSize: s.fontSize,
-      height: s.lineHeight,
+      height: _snappedLineHeight(s.fontSize, s.lineHeight),
       // Line spacing goes equally above and below the text, so the text and
       // the caret sit in the middle of each line.
       leadingDistribution: TextLeadingDistribution.even,
@@ -1802,6 +1861,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     if (sig != _styleSig) {
       _styleSig = sig;
       _prefixWidths.clear();
+      _clearGutterCache();
       _caretRatio = _measureCaretRatio();
     }
     if (doc.focusNode.hasFocus) _scheduleImeGeometry();
@@ -1809,8 +1869,17 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       focusNode: doc.focusNode,
       onKeyEvent: _onKey,
       child: LayoutBuilder(builder: (context, constraints) {
-        _hpad = math.max<double>(20.0, (constraints.maxWidth - s.maxWidth) / 2);
-        _textWidth = math.max<double>(60.0, constraints.maxWidth - 2 * _hpad);
+        // Whole pixels everywhere, so a pixel font stays on the pixel grid.
+        final w = constraints.maxWidth;
+        final left = s.lineNumbers ? _gutterWidth(c.analysis.lineCount) + _gutterGap : 20.0;
+        if (s.centerText) {
+          _hpad = math.max<double>(left, (w - s.maxWidth) / 2).roundToDouble();
+          _textWidth = math.max<double>(60.0, w - 2 * _hpad).floorToDouble();
+        } else {
+          _hpad = left;
+          _textWidth = math.max<double>(60.0, math.min<double>(s.maxWidth, w - left - 20)).floorToDouble();
+        }
+        _rpad = math.max<double>(0.0, w - _hpad - _textWidth);
         _relayout();
         final count = _layouts.length;
         return ColoredBox(
@@ -1824,7 +1893,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
               cursor: SystemMouseCursors.text,
               child: ListView.custom(
                 controller: doc.scroll,
-                padding: EdgeInsets.fromLTRB(_hpad, _vpad, _hpad, math.max<double>(_vpad, constraints.maxHeight / 3)),
+                padding: EdgeInsets.fromLTRB(_hpad, _vpad, _rpad, math.max<double>(_vpad, constraints.maxHeight / 3).roundToDouble()),
                 itemExtentBuilder: (index, dimensions) => index < _layouts.length ? _layouts[index].height : null,
                 childrenDelegate: _LinesDelegate(
                   (context, index) => index < _layouts.length ? CustomPaint(painter: _LinePainter(this, index)) : null,

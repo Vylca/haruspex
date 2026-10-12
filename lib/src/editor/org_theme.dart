@@ -1,9 +1,21 @@
 import 'package:flutter/material.dart';
 
+/// The pixel font bundled with the app (Spleen 8x16). It is crisp at 16 px
+/// and whole multiples of it.
+const String pixelFont = 'Spleen';
+
+/// Size at which [pixelFont] lines up with the screen pixels.
+const double pixelSize = 16;
+
 class OrgTheme {
   const OrgTheme({
     required this.background,
+    required this.panel,
+    required this.panelHi,
+    required this.border,
+    required this.hlLine,
     required this.text,
+    required this.bright,
     required this.faint,
     required this.levels,
     required this.todo,
@@ -15,14 +27,31 @@ class OrgTheme {
     required this.code,
     required this.codeBg,
     required this.accent,
+    required this.accentDim,
     required this.markerBg,
     required this.markerFg,
     required this.selection,
     required this.searchHit,
   });
 
+  /// Editor background.
   final Color background;
+
+  /// Menu bar, tabs, mode line and side panels (darker than the editor).
+  final Color panel;
+
+  /// Hovered items in panels and menus.
+  final Color panelHi;
+
+  /// One pixel lines between areas.
+  final Color border;
+
+  /// Background of the line holding the caret.
+  final Color hlLine;
   final Color text;
+
+  /// Bold text.
+  final Color bright;
   final Color faint;
   final List<Color> levels;
   final Color todo;
@@ -33,7 +62,10 @@ class OrgTheme {
   final Color timestamp;
   final Color code;
   final Color codeBg;
+
+  /// The orange.
   final Color accent;
+  final Color accentDim;
   final Color markerBg;
   final Color markerFg;
   final Color selection;
@@ -41,61 +73,39 @@ class OrgTheme {
 
   Color level(int l) => levels[(l - 1) % levels.length];
 
-  static const light = OrgTheme(
-    background: Color(0xFFFBFAF7),
-    text: Color(0xFF1F2328),
-    faint: Color(0xFF8C959F),
+  /// Black and orange, after the HUDs and menus of early 2000s shooters.
+  static const hev = OrgTheme(
+    background: Color(0xFF0F0E0C),
+    panel: Color(0xFF080706),
+    panelHi: Color(0xFF221A0F),
+    border: Color(0xFF2C251C),
+    hlLine: Color(0xFF1A1610),
+    text: Color(0xFFDDD2BC),
+    bright: Color(0xFFFFF1D6),
+    faint: Color(0xFF7A6E5C),
     levels: [
-      Color(0xFF0B5CAD),
-      Color(0xFF8250DF),
-      Color(0xFF1A7F37),
-      Color(0xFFBC4C00),
-      Color(0xFF0969DA),
-      Color(0xFFBF3989),
-      Color(0xFF6639BA),
-      Color(0xFF116329),
+      Color(0xFFFF9F1C),
+      Color(0xFFFFC857),
+      Color(0xFFE8683A),
+      Color(0xFFD9B26F),
+      Color(0xFFF4A259),
+      Color(0xFFB8B068),
+      Color(0xFFC8834E),
+      Color(0xFF9C9478),
     ],
-    todo: Color(0xFFCF222E),
-    done: Color(0xFF1A7F37),
-    priority: Color(0xFFBC4C00),
-    tag: Color(0xFF6E7781),
-    link: Color(0xFF0969DA),
-    timestamp: Color(0xFF8250DF),
-    code: Color(0xFF953800),
-    codeBg: Color(0x14000000),
-    accent: Color(0xFF0B5CAD),
-    markerBg: Color(0x1A0B5CAD),
-    markerFg: Color(0xFF0B5CAD),
-    selection: Color(0x400969DA),
-    searchHit: Color(0x66F2CC60),
-  );
-
-  static const dark = OrgTheme(
-    background: Color(0xFF16181D),
-    text: Color(0xFFE6EDF3),
-    faint: Color(0xFF6E7681),
-    levels: [
-      Color(0xFF58A6FF),
-      Color(0xFFD2A8FF),
-      Color(0xFF7EE787),
-      Color(0xFFFFA657),
-      Color(0xFF79C0FF),
-      Color(0xFFFF7B72),
-      Color(0xFFBC8CFF),
-      Color(0xFF56D364),
-    ],
-    todo: Color(0xFFFF7B72),
-    done: Color(0xFF7EE787),
-    priority: Color(0xFFFFA657),
-    tag: Color(0xFF8B949E),
-    link: Color(0xFF58A6FF),
-    timestamp: Color(0xFFD2A8FF),
-    code: Color(0xFFFFA657),
-    codeBg: Color(0x1FFFFFFF),
-    accent: Color(0xFF58A6FF),
-    markerBg: Color(0x2658A6FF),
-    markerFg: Color(0xFF79C0FF),
-    selection: Color(0x5558A6FF),
-    searchHit: Color(0x55BB8009),
+    todo: Color(0xFFFF4B2B),
+    done: Color(0xFF8FA35B),
+    priority: Color(0xFFFFC857),
+    tag: Color(0xFF8C8A6A),
+    link: Color(0xFFFFC857),
+    timestamp: Color(0xFFC9A66B),
+    code: Color(0xFFE9B872),
+    codeBg: Color(0xFF1C1813),
+    accent: Color(0xFFFF9F1C),
+    accentDim: Color(0xFF7A4A0E),
+    markerBg: Color(0xFF2A1D0B),
+    markerFg: Color(0xFFFF9F1C),
+    selection: Color(0xFF5A3912),
+    searchHit: Color(0x99B36B00),
   );
 }

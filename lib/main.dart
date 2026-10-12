@@ -1,10 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'src/app/settings.dart';
+import 'src/editor/org_theme.dart';
+import 'src/ui/hev_theme.dart';
 import 'src/ui/workspace.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    final text = await rootBundle.loadString('assets/fonts/LICENSE-Spleen.txt');
+    yield LicenseEntryWithLineBreaks(const ['Spleen font'], text);
+  });
   final settings = AppSettings();
   await settings.load();
   runApp(OrgPadApp(settings: settings, initialFiles: args));
@@ -16,28 +24,17 @@ class OrgPadApp extends StatelessWidget {
   final AppSettings settings;
   final List<String> initialFiles;
 
-  ThemeData _theme(Brightness b) {
-    final scheme = ColorScheme.fromSeed(seedColor: const Color(0xFF0B5CAD), brightness: b);
-    return ThemeData(
-      colorScheme: scheme,
-      useMaterial3: true,
-      visualDensity: VisualDensity.compact,
-      textSelectionTheme: TextSelectionThemeData(
-        selectionColor: settings.orgTheme(b).selection,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = buildHevTheme(OrgTheme.hev);
     return ListenableBuilder(
       listenable: settings,
       builder: (context, _) => MaterialApp(
         title: 'OrgPad',
         debugShowCheckedModeBanner: false,
-        themeMode: settings.themeMode,
-        theme: _theme(Brightness.light),
-        darkTheme: _theme(Brightness.dark),
+        themeMode: ThemeMode.dark,
+        theme: theme,
+        darkTheme: theme,
         home: Workspace(settings: settings, initialFiles: initialFiles),
       ),
     );

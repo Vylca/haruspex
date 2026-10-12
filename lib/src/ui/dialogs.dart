@@ -134,7 +134,7 @@ class _TimestampDialogState extends State<_TimestampDialog> {
                 ),
               ]),
               const SizedBox(height: 12),
-              Text(preview, style: const TextStyle(fontFamily: 'monospace')),
+              Text(preview),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),

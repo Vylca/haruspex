@@ -6,19 +6,27 @@ import 'package:flutter/material.dart';
 import '../editor/org_theme.dart';
 
 class AppSettings extends ChangeNotifier {
-  ThemeMode themeMode = ThemeMode.system;
+  /// Bumped when the default look changes, so older settings files pick up
+  /// the new defaults for the look once.
+  static const int _styleVersion = 2;
 
-  /// Editor font family (any installed font, or a fontconfig alias such as
-  /// "monospace", "sans-serif" or "serif").
-  String fontFamily = 'monospace';
+  /// Editor font family: the bundled pixel font, any installed font, or a
+  /// fontconfig alias such as "monospace", "sans-serif" or "serif".
+  String fontFamily = pixelFont;
 
   /// Font for code, tables and verbatim text.
-  String codeFontFamily = 'monospace';
-  double fontSize = 16;
-  double lineHeight = 1.5;
+  String codeFontFamily = pixelFont;
+  double fontSize = pixelSize;
+  double lineHeight = 1.25;
   bool hideMarkup = true;
-  bool scaleHeadings = true;
+  bool scaleHeadings = false;
   bool superstar = true;
+
+  /// Line numbers in a gutter on the left.
+  bool lineNumbers = true;
+
+  /// Center the text column instead of starting it at the left edge.
+  bool centerText = false;
 
   /// Indent body text to line up with its heading (like org-indent-mode).
   bool indentBody = true;
@@ -34,7 +42,7 @@ class AppSettings extends ChangeNotifier {
   String? lastVault;
   List<String> recentVaults = [];
 
-  OrgTheme orgTheme(Brightness b) => b == Brightness.dark ? OrgTheme.dark : OrgTheme.light;
+  OrgTheme get orgTheme => OrgTheme.hev;
 
   static File? _file() {
     try {
@@ -53,13 +61,16 @@ class AppSettings extends ChangeNotifier {
     try {
       if (!await f.exists()) return;
       final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-      themeMode = ThemeMode.values.firstWhere((m) => m.name == j['themeMode'], orElse: () => ThemeMode.system);
-      fontFamily = j['fontFamily'] as String? ?? fontFamily;
-      codeFontFamily = j['codeFontFamily'] as String? ?? codeFontFamily;
-      fontSize = (j['fontSize'] as num?)?.toDouble() ?? fontSize;
-      lineHeight = (j['lineHeight'] as num?)?.toDouble() ?? lineHeight;
+      if ((j['styleVersion'] as num? ?? 0) >= _styleVersion) {
+        fontFamily = j['fontFamily'] as String? ?? fontFamily;
+        codeFontFamily = j['codeFontFamily'] as String? ?? codeFontFamily;
+        fontSize = (j['fontSize'] as num?)?.toDouble() ?? fontSize;
+        lineHeight = (j['lineHeight'] as num?)?.toDouble() ?? lineHeight;
+        scaleHeadings = j['scaleHeadings'] as bool? ?? scaleHeadings;
+      }
       hideMarkup = j['hideMarkup'] as bool? ?? hideMarkup;
-      scaleHeadings = j['scaleHeadings'] as bool? ?? scaleHeadings;
+      lineNumbers = j['lineNumbers'] as bool? ?? lineNumbers;
+      centerText = j['centerText'] as bool? ?? centerText;
       superstar = j['superstar'] as bool? ?? superstar;
       indentBody = j['indentBody'] as bool? ?? indentBody;
       foldDrawers = j['foldDrawers'] as bool? ?? foldDrawers;
@@ -82,7 +93,7 @@ class AppSettings extends ChangeNotifier {
     try {
       await f.parent.create(recursive: true);
       await f.writeAsString(const JsonEncoder.withIndent('  ').convert({
-        'themeMode': themeMode.name,
+        'styleVersion': _styleVersion,
         'fontFamily': fontFamily,
         'codeFontFamily': codeFontFamily,
         'fontSize': fontSize,
@@ -90,6 +101,8 @@ class AppSettings extends ChangeNotifier {
         'hideMarkup': hideMarkup,
         'scaleHeadings': scaleHeadings,
         'superstar': superstar,
+        'lineNumbers': lineNumbers,
+        'centerText': centerText,
         'indentBody': indentBody,
         'foldDrawers': foldDrawers,
         'showOutline': showOutline,
@@ -130,9 +143,9 @@ class AppSettings extends ChangeNotifier {
   }
 }
 
-/// Installed font families, from fontconfig.
+/// The bundled pixel font plus the installed font families, from fontconfig.
 Future<List<String>> systemFontFamilies() async {
-  final families = <String>{'monospace', 'sans-serif', 'serif'};
+  final families = <String>{pixelFont, 'monospace', 'sans-serif', 'serif'};
   try {
     final r = await Process.run('fc-list', [':', 'family']);
     if (r.exitCode == 0) {

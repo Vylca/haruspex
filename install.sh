@@ -25,22 +25,33 @@ if [ "$(cd "$bundle" && pwd)" = "$dest" ]; then
   exit 0
 fi
 
+apps="$HOME/.local/share/applications"
+icons="$HOME/.local/share/icons/hicolor"
 rm -rf "$dest"
-mkdir -p "$dest" "$HOME/.local/bin" "$HOME/.local/share/applications"
+mkdir -p "$dest" "$HOME/.local/bin" "$apps" "$icons/256x256/apps"
 cp -r "$bundle"/. "$dest"/
 ln -sf "$dest/orgpad" "$HOME/.local/bin/orgpad"
 
-cat > "$HOME/.local/share/applications/orgpad.desktop" <<EOF
+icon="$dest/data/flutter_assets/assets/icon/orgpad.png"
+if [ -f "$icon" ]; then
+  cp "$icon" "$icons/256x256/apps/orgpad.png"
+  gtk-update-icon-cache -q -t "$icons" >/dev/null 2>&1 || true
+fi
+
+# Named after the app id so docks and window switchers find the icon.
+rm -f "$apps/orgpad.desktop"
+cat > "$apps/dev.orgpad.orgpad.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=OrgPad
 Comment=Plain text editor built on Org mode
 Exec=$dest/orgpad %F
-Icon=accessories-text-editor
+Icon=orgpad
 Terminal=false
 Categories=Utility;TextEditor;
 MimeType=text/org;text/x-org;text/plain;
+StartupWMClass=orgpad
 EOF
 
-update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+update-desktop-database "$apps" >/dev/null 2>&1 || true
 echo "Installed. Start it from your app menu or run: orgpad [file.org]"

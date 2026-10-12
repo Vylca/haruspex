@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../app/vault.dart';
 import '../editor/org_theme.dart';
+import 'pixel_widgets.dart';
 
-enum TreeAction { newNote, newFolder, rename, delete }
+enum TreeAction { newNote, newFolder, rename, delete, collapse, refresh }
 
 /// Left sidebar listing the notes and folders of the vault.
 class FileTreePanel extends StatelessWidget {
@@ -24,7 +25,7 @@ class FileTreePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final t = theme;
     return ListenableBuilder(
       listenable: vault,
       builder: (context, _) {
@@ -39,26 +40,26 @@ class FileTreePanel extends StatelessWidget {
         add(vault.tree, 0);
         final rootEntry = VaultEntry(vault.root, true);
         return ColoredBox(
-          color: scheme.surfaceContainerLow,
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 4, 4),
+          color: t.panel,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(
+              height: 24,
+              padding: const EdgeInsets.only(left: 8),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.border))),
               child: Row(children: [
                 Expanded(
                   child: Tooltip(
                     message: vault.root,
                     child: Text(
-                      vault.name,
+                      vault.name.toUpperCase(),
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(color: t.accent),
                     ),
                   ),
                 ),
-                _iconButton(Icons.note_add_outlined, 'New note', () => onAction(TreeAction.newNote, rootEntry)),
-                _iconButton(
-                    Icons.create_new_folder_outlined, 'New folder', () => onAction(TreeAction.newFolder, rootEntry)),
-                _iconButton(Icons.unfold_less, 'Collapse all', vault.collapseAll),
-                _iconButton(Icons.refresh, 'Refresh', vault.scan),
+                _button('+', 'New note', () => onAction(TreeAction.newNote, rootEntry)),
+                _button('+/', 'New folder', () => onAction(TreeAction.newFolder, rootEntry)),
+                _button('-', 'Collapse all', vault.collapseAll),
               ]),
             ),
             Expanded(
@@ -67,11 +68,10 @@ class FileTreePanel extends StatelessWidget {
                 onSecondaryTapDown: (d) => _menu(context, rootEntry, d.globalPosition, isRoot: true),
                 child: rows.isEmpty
                     ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text('No notes yet. Create one with the + button.',
-                            style: TextStyle(color: theme.faint)),
+                        padding: const EdgeInsets.all(8),
+                        child: Text('No notes yet. + makes one.', style: TextStyle(color: t.faint)),
                       )
-                    : ListView(padding: const EdgeInsets.only(bottom: 24), children: rows),
+                    : ListView(padding: const EdgeInsets.only(top: 2, bottom: 24), children: rows),
               ),
             ),
           ]),
@@ -80,45 +80,44 @@ class FileTreePanel extends StatelessWidget {
     );
   }
 
-  Widget _iconButton(IconData icon, String tip, VoidCallback onPressed) => IconButton(
+  Widget _button(String label, String tip, VoidCallback onPressed) => HoverBox(
+        theme: theme,
+        onTap: onPressed,
         tooltip: tip,
-        visualDensity: VisualDensity.compact,
-        iconSize: 18,
-        icon: Icon(icon),
-        onPressed: onPressed,
+        builder: (hot) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: Text(label, style: TextStyle(color: hot ? Colors.black : theme.faint)),
+        ),
       );
 
   Widget _row(BuildContext context, VaultEntry e, int depth) {
+    final t = theme;
     final active = !e.isDir && e.path == activePath;
     final open = e.isDir && vault.expanded.contains(e.path);
-    return GestureDetector(
+    return HoverBox(
+      theme: t,
+      selected: active,
+      onTap: () => e.isDir ? vault.toggle(e.path) : onOpen(e.path),
       onSecondaryTapDown: (d) => _menu(context, e, d.globalPosition),
-      child: InkWell(
-        onTap: () => e.isDir ? vault.toggle(e.path) : onOpen(e.path),
-        child: Container(
-          color: active ? theme.markerBg : null,
-          padding: EdgeInsets.fromLTRB(8.0 + 14.0 * depth, 4, 8, 4),
+      builder: (hot) {
+        final color = hot ? Colors.black : (active ? t.accent : (e.isDir ? t.levels[1] : t.text));
+        return Padding(
+          padding: EdgeInsets.fromLTRB(8.0 + 16.0 * depth, 0, 8, 0),
           child: Row(children: [
-            Icon(
-              e.isDir ? (open ? Icons.expand_more : Icons.chevron_right) : Icons.description_outlined,
-              size: 16,
-              color: theme.faint,
+            SizedBox(
+              width: 16,
+              child: Text(e.isDir ? (open ? '\u25BE' : '\u25B8') : '', style: TextStyle(color: hot ? Colors.black : t.faint)),
             ),
-            const SizedBox(width: 6),
             Expanded(
               child: Text(
-                e.isDir ? e.name : stripNoteExtension(e.name),
+                e.isDir ? '${e.name}/' : stripNoteExtension(e.name),
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                  color: active ? theme.accent : null,
-                ),
+                style: TextStyle(color: color),
               ),
             ),
           ]),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -132,6 +131,11 @@ class FileTreePanel extends StatelessWidget {
       items: [
         const PopupMenuItem(value: TreeAction.newNote, child: Text('New note')),
         const PopupMenuItem(value: TreeAction.newFolder, child: Text('New folder')),
+        if (isRoot) ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem(value: TreeAction.collapse, child: Text('Collapse all')),
+          const PopupMenuItem(value: TreeAction.refresh, child: Text('Refresh')),
+        ],
         if (!isRoot) ...[
           const PopupMenuDivider(),
           const PopupMenuItem(value: TreeAction.rename, child: Text('Rename…')),
@@ -147,6 +151,10 @@ class FileTreePanel extends StatelessWidget {
       case TreeAction.rename:
       case TreeAction.delete:
         onAction(choice, e);
+      case TreeAction.collapse:
+        vault.collapseAll();
+      case TreeAction.refresh:
+        vault.scan();
     }
   }
 }
