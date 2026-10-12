@@ -3,7 +3,18 @@
 A plain text editor for Linux (Android later) that uses Org mode as its
 backbone. Files stay ordinary `.org` / `.txt` text, compatible with Emacs.
 
-## Build and run (Linux)
+## Install (Linux)
+
+Every push to `main` is built on GitHub. Download `orgpad-linux-x64.tar.gz`
+from the [latest release](../../releases/tag/latest), then:
+
+```sh
+cd /tmp && tar -xzf ~/Downloads/orgpad-linux-x64.tar.gz && ./orgpad/install.sh
+```
+
+The same command updates an existing install.
+
+## Build and run from source (Linux)
 
 1. Install the toolchain and Flutter.
 
@@ -56,7 +67,11 @@ tests and attaches `orgpad-linux-x64.tar.gz` to the run.
   `orgpad ~/notes`. File tree with new/rename/trash, Ctrl+P quick switcher,
   `[[Note name]]` links to other notes, open tabs restored, agenda over the
   whole folder. The folder gets a small `.orgpad` directory for its state.
-- Any installed font (Settings), monospace by default
+- Look: black and orange, square and flat, after Doom Emacs. Line numbers,
+  current line highlight, a mode line and echo area, a dashboard with one key
+  shortcuts when nothing is open
+- Bundled pixel font (Spleen 8x16), sharpest at 16 and 32 px. Any installed
+  font can be picked in Settings
 
 Shortcuts are listed under Help > Keyboard shortcuts. `Ctrl+C` with no
 selection acts as Emacs's `C-c` prefix, so `C-c C-t` is Ctrl+C then T.
@@ -73,6 +88,14 @@ the Android build.
 lib/src/org/      Org logic without UI: parsing, tables, lists, timestamps,
                   structure edits, agenda
 lib/src/editor/   text controller, highlighter, folding, key handling
-lib/src/ui/       window, menus, dialogs, agenda, outline
+lib/src/ui/       window, menus, dialogs, agenda, outline, theme
+assets/           pixel font and app icon
+tool/             scripts that generate the font and the icon
 test/             unit and widget tests (flutter test)
 ```
+
+## Credits
+
+The pixel font is [Spleen](https://github.com/fcambus/spleen) by Frederic
+Cambus (BSD 2-Clause, see `assets/fonts/LICENSE-Spleen.txt`), converted to
+outlines by `tool/build_font.py`.
