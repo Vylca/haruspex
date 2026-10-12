@@ -65,7 +65,7 @@ class _AgendaPageState extends State<AgendaPage> {
         backgroundColor: widget.theme.background,
         appBar: AppBar(
           title: const Text('*Org Agenda*'),
-          leading: _textButton('<', 'Back', () => Navigator.of(context).maybePop()),
+          leading: Center(child: _textButton('<', 'Back', () => Navigator.of(context).maybePop())),
           bottom: const PreferredSize(
             preferredSize: Size.fromHeight(24),
             child: SizedBox(

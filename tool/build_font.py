@@ -219,8 +219,9 @@ def build(glyphs, out_path, bold):
         cmap[cp] = name
         px = glyphs[cp]
         if bold:
-            # Classic bitmap bold: every pixel smeared one to the right.
-            px = px | {(x + 1, y) for x, y in px}
+            # Bitmap bold: every pixel smeared one to the right, except where
+            # that would close a one pixel gap (keeps m, w and e readable).
+            px = px | {(x + 1, y) for x, y in px if (x + 2, y) not in px}
         shapes[name] = px
 
     fb = FontBuilder(PX * 16, isTTF=True)

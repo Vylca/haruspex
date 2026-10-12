@@ -2,6 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../editor/org_theme.dart';
 
+/// A text field without any box, for prompts in the style of a minibuffer.
+const InputDecoration minibufferDecoration = InputDecoration(
+  isCollapsed: true,
+  filled: false,
+  border: InputBorder.none,
+  enabledBorder: InputBorder.none,
+  focusedBorder: InputBorder.none,
+  disabledBorder: InputBorder.none,
+  contentPadding: EdgeInsets.zero,
+);
+
 /// Hovered, focused or pressed: drawn inverted (black on orange).
 bool _hot(Set<WidgetState> s) =>
     s.contains(WidgetState.hovered) || s.contains(WidgetState.focused) || s.contains(WidgetState.pressed);
@@ -125,6 +136,8 @@ ThemeData buildHevTheme(OrgTheme t) {
   );
   final menuItem = ButtonStyle(
     shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+    // Menu items are text buttons inside; keep the text button border out.
+    side: const WidgetStatePropertyAll(BorderSide.none),
     backgroundColor: WidgetStateProperty.resolveWith((s) => _hot(s) ? t.accent : Colors.transparent),
     foregroundColor: WidgetStateProperty.resolveWith((s) {
       if (s.contains(WidgetState.disabled)) return t.faint;
@@ -233,7 +246,7 @@ ThemeData buildHevTheme(OrgTheme t) {
     ),
     listTileTheme: ListTileThemeData(
       shape: const RoundedRectangleBorder(),
-      dense: true,
+      dense: false,
       selectedColor: Colors.black,
       selectedTileColor: t.accent,
       iconColor: t.faint,

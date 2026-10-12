@@ -19,6 +19,7 @@ import 'agenda_page.dart';
 import 'dialogs.dart';
 import 'file_tree.dart';
 import 'help.dart';
+import 'hev_theme.dart';
 import 'outline_panel.dart';
 import 'pixel_widgets.dart';
 import 'quick_switcher.dart';
@@ -862,11 +863,6 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   // Dashboard, shown when nothing is open
   // -------------------------------------------------------------------------
 
-  static const _banner = '▄▀▀▀▄ █▀▀▀▄ ▄▀▀▀▄ █▀▀▀▄ ▄▀▀▀▄ █▀▀▀▄\n'
-      '█   █ █▄▄▄▀ █ ▄▄▄ █▄▄▄▀ █▄▄▄█ █   █\n'
-      '█   █ █ ▀▄  █   █ █     █   █ █   █\n'
-      ' ▀▀▀  ▀   ▀  ▀▀▀  ▀     ▀   ▀ ▀▀▀▀';
-
   List<(String, String, String, VoidCallback)> get _dashItems {
     final v = vault;
     return [
@@ -935,7 +931,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
             return Center(
               child: SingleChildScrollView(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(_banner, style: base.copyWith(color: t.accent, height: 1.0, fontSize: big ? 2 * pixelSize : pixelSize)),
+                  PixelBanner('ORGPAD', color: t.accent, pixel: big ? 16 : 8),
                   const SizedBox(height: 12),
                   Text(
                     v == null ? 'plain text, org mode' : 'vault: ${v.name}',
@@ -1274,7 +1270,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           controller: ctrl,
           focusNode: focus,
           style: TextStyle(color: t.text),
-          decoration: const InputDecoration.collapsed(hintText: '', filled: false),
+          decoration: minibufferDecoration,
           onChanged: onChanged,
           onEditingComplete: () {},
           onSubmitted: onSubmitted,

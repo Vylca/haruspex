@@ -17,7 +17,6 @@ Widget _fontPicker(AppSettings s, String label, String value, void Function(Stri
           key: ValueKey('$label|$value|${fonts.length}'),
           width: 440,
           menuHeight: 320,
-          label: Text(label),
           enableFilter: true,
           requestFocusOnTap: true,
           initialSelection: value,
@@ -89,7 +88,6 @@ Future<void> showSettingsDialog(BuildContext context, AppSettings settings) {
               const Text('Open documents and the open folder are always included.'),
               for (final f in s.agendaFiles)
                 ListTile(
-                  dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(f, overflow: TextOverflow.ellipsis),
                   trailing: TextButton(

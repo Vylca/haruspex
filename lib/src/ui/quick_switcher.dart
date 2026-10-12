@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../app/vault.dart';
 import '../editor/org_theme.dart';
+import 'hev_theme.dart';
 import 'pixel_widgets.dart';
 
 /// Result of the quick switcher: an existing note, or a name to create.
@@ -107,7 +108,7 @@ class _QuickSwitcherState extends State<_QuickSwitcher> {
                     controller: _q,
                     autofocus: true,
                     style: TextStyle(color: t.text),
-                    decoration: const InputDecoration.collapsed(hintText: ''),
+                    decoration: minibufferDecoration,
                     onChanged: (_) => setState(() => _selected = 0),
                     onSubmitted: (_) => _submit(),
                   ),
