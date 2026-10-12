@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../editor/org_theme.dart';
@@ -236,6 +237,9 @@ class _PanelSplitterState extends State<PanelSplitter> {
       onExit: (_) => setState(() => _hot = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        // Count the movement from the press, not from where the drag is
+        // recognized, so the line stays under the mouse.
+        dragStartBehavior: DragStartBehavior.down,
         onHorizontalDragStart: (_) => setState(() => _dragging = true),
         onHorizontalDragUpdate: (d) => widget.onDrag(d.delta.dx),
         onHorizontalDragEnd: (_) => _end(),

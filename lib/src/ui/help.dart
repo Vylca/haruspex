@@ -59,6 +59,8 @@ const keyBindings = <(String, List<(String, String)>)>[
     ('Ctrl+F / Ctrl+H', 'Find / replace'),
     ('Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'),
     ('Ctrl+= / Ctrl+- / Ctrl+0', 'Zoom in / out / reset'),
+    ('Ctrl+mouse wheel', 'Zoom in / out'),
+    ('Drag a panel edge', 'Resize the side panel (double click: default width)'),
     ('Ctrl+Shift+O', 'Toggle outline'),
     ('Right click', 'Cut, copy, paste; in the file tree: new, rename, trash'),
   ]),
