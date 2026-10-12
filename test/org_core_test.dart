@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orgpad/src/org/agenda.dart';
-import 'package:orgpad/src/org/analysis.dart';
-import 'package:orgpad/src/org/edits.dart';
-import 'package:orgpad/src/org/syntax.dart';
-import 'package:orgpad/src/org/table.dart';
-import 'package:orgpad/src/org/timestamp.dart';
+import 'package:haruspex/src/org/agenda.dart';
+import 'package:haruspex/src/org/analysis.dart';
+import 'package:haruspex/src/org/edits.dart';
+import 'package:haruspex/src/org/syntax.dart';
+import 'package:haruspex/src/org/table.dart';
+import 'package:haruspex/src/org/timestamp.dart';
 
 int offsetOf(String text, String marker) {
   final i = text.indexOf(marker);

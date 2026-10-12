@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds OrgPad as a native Linux app.
+# Builds Haruspex as a native Linux app.
 #   ./build.sh            build only
 #   ./build.sh --install  build, then install to ~/.local with a menu entry
 set -euo pipefail
@@ -29,17 +29,23 @@ fi
 
 flutter config --enable-linux-desktop >/dev/null
 
+# A runner generated before the rename still builds the old binary name.
+if [ -f linux/CMakeLists.txt ] && ! grep -q 'BINARY_NAME "haruspex"' linux/CMakeLists.txt; then
+  rm -rf linux build
+fi
+
 # Generate the native Linux runner the first time (existing files are kept).
 if [ ! -d linux ]; then
-  flutter create --platforms=linux --project-name orgpad --org dev.orgpad .
+  flutter create --platforms=linux --project-name haruspex --org io.github.vylca .
 fi
+tool/patch_runner.sh
 
 flutter pub get
 flutter build linux --release
 
 bundle=$(find build/linux -type d -path '*/release/bundle' | head -n 1)
 echo
-echo "Built: $bundle/orgpad"
+echo "Built: $bundle/haruspex"
 
 if [ "${1:-}" = "--install" ]; then
   ./install.sh "$bundle"

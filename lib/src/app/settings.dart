@@ -44,22 +44,27 @@ class AppSettings extends ChangeNotifier {
 
   OrgTheme get orgTheme => OrgTheme.hev;
 
-  static File? _file() {
+  static File? _file([String app = 'haruspex']) {
     try {
       final env = Platform.environment;
       final base = env['XDG_CONFIG_HOME'] ?? (env['HOME'] != null ? '${env['HOME']}/.config' : null);
       if (base == null) return null;
-      return File('$base/orgpad/settings.json');
+      return File('$base/$app/settings.json');
     } catch (_) {
       return null;
     }
   }
 
   Future<void> load() async {
-    final f = _file();
+    var f = _file();
     if (f == null) return;
     try {
-      if (!await f.exists()) return;
+      if (!await f.exists()) {
+        // Settings saved before the app was renamed.
+        final old = _file('orgpad');
+        if (old == null || !await old.exists()) return;
+        f = old;
+      }
       final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
       if ((j['styleVersion'] as num? ?? 0) >= _styleVersion) {
         fontFamily = j['fontFamily'] as String? ?? fontFamily;

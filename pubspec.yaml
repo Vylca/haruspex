@@ -1,7 +1,7 @@
-name: orgpad
+name: haruspex
 description: A plain text editor built on Org mode.
 publish_to: 'none'
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ^3.6.0
@@ -20,7 +20,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/LICENSE-Spleen.txt
-    - assets/icon/orgpad.png
+    - assets/icon/haruspex.png
   fonts:
     # Spleen 8x16 by Frederic Cambus (BSD 2-Clause), converted to outlines by
     # tool/build_font.py so it renders as crisp pixels at 16 px.

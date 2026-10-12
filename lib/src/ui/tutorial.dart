@@ -1,8 +1,8 @@
-const tutorialText = r'''#+TITLE: Welcome to OrgPad
+const tutorialText = r'''#+TITLE: Welcome to Haruspex
 #+TODO: TODO NEXT WAITING | DONE CANCELED
 #+STARTUP: showall
 
-OrgPad is a plain text editor that understands Org mode. Everything you see
+Haruspex is a plain text editor that understands Org mode. Everything you see
 is ordinary text saved to an .org or .txt file. Put the caret on a heading
 and press Tab to fold it. Shift+Tab cycles the whole document.
 

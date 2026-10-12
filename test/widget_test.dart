@@ -1,14 +1,14 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orgpad/main.dart';
-import 'package:orgpad/src/app/settings.dart';
-import 'package:orgpad/src/editor/org_controller.dart';
-import 'package:orgpad/src/editor/org_editor.dart';
+import 'package:haruspex/main.dart';
+import 'package:haruspex/src/app/settings.dart';
+import 'package:haruspex/src/editor/org_controller.dart';
+import 'package:haruspex/src/editor/org_editor.dart';
 
 Future<OrgEditorState> startEditor(WidgetTester tester, String text) async {
   await tester.binding.setSurfaceSize(const Size(1200, 800));
   final settings = AppSettings()..tutorialShown = true;
-  await tester.pumpWidget(OrgPadApp(settings: settings, initialFiles: const []));
+  await tester.pumpWidget(HaruspexApp(settings: settings, initialFiles: const []));
   await tester.pumpAndSettle();
   // The dashboard shows at start. Ctrl+N opens an empty buffer.
   if (find.byType(OrgEditor).evaluate().isEmpty) {

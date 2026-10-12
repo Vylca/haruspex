@@ -28,7 +28,7 @@ class VaultEntry {
 }
 
 /// A folder of notes, like an Obsidian vault. The folder is marked by a
-/// `.orgpad` directory that holds the workspace state (open tabs, expanded
+/// `.haruspex` directory that holds the workspace state (open tabs, expanded
 /// folders). Deleted notes go to `.trash` in the vault.
 class Vault extends ChangeNotifier {
   Vault(this.root);
@@ -42,21 +42,32 @@ class Vault extends ChangeNotifier {
   bool _disposed = false;
 
   String get name => baseName(root);
-  String get configDir => '$root$_sep.orgpad';
+  String get configDir => '$root$_sep.haruspex';
+
+  /// Where the state lived before the app was renamed.
+  String get _oldConfigDir => '$root$_sep.orgpad';
   String get trashDir => '$root$_sep.trash';
   File get _stateFile => File('$configDir${_sep}workspace.json');
 
   static bool isNote(String path) => RegExp(r'\.(org|txt|org_archive)$', caseSensitive: false).hasMatch(path);
 
-  static bool isVault(String dir) => Directory('$dir$_sep.orgpad').existsSync();
+  static bool isVault(String dir) =>
+      Directory('$dir$_sep.haruspex').existsSync() || Directory('$dir$_sep.orgpad').existsSync();
 
-  /// Creates the `.orgpad` folder if needed and scans the notes.
+  /// Creates the `.haruspex` folder if needed (taking over an `.orgpad`
+  /// folder from before the rename) and scans the notes.
   Future<void> init() async {
+    final old = Directory(_oldConfigDir);
+    if (!await Directory(configDir).exists() && await old.exists()) {
+      try {
+        await old.rename(configDir);
+      } catch (_) {
+        // Keep going with a fresh folder.
+      }
+    }
     await Directory(configDir).create(recursive: true);
     final readme = File('$configDir${_sep}README.txt');
-    if (!await readme.exists()) {
-      await readme.writeAsString('This folder holds OrgPad settings for this vault. It is safe to delete.\n');
-    }
+    await readme.writeAsString('This folder holds Haruspex settings for this vault. It is safe to delete.\n');
     await scan();
   }
 

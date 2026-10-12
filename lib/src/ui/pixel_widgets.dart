@@ -55,24 +55,74 @@ class _HoverBoxState extends State<HoverBox> {
   }
 }
 
-/// Big blocky letters drawn as squares, used for the dashboard banner.
-class PixelBanner extends StatelessWidget {
-  const PixelBanner(this.text, {super.key, required this.color, this.pixel = 8});
+/// The Haruspex logo, the alchemical symbol for earth, made by
+/// tool/build_icon.py.
+const List<String> logoRows = [
+  '##########################',
+  '##########################',
+  '.##....................##.',
+  '..##..................##..',
+  '..##..................##..',
+  '...##................##...',
+  '....##..............##....',
+  '....##..............##....',
+  '.....##............##.....',
+  '......##############......',
+  '......##############......',
+  '.......##........##.......',
+  '........##......##........',
+  '........##......##........',
+  '.........##....##.........',
+  '..........##..##..........',
+  '..........##..##..........',
+  '...........####...........',
+  '............##............',
+  '............##............',
+];
 
-  final String text;
+/// Pixel art from rows of '#' (filled) and '.' (empty), drawn as squares.
+class PixelArt extends StatelessWidget {
+  const PixelArt(this.rows, {super.key, required this.color, this.pixel = 8});
+
+  final List<String> rows;
   final Color color;
 
   /// Side of one square, in logical pixels.
   final double pixel;
 
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(rows.first.length * pixel, rows.length * pixel),
+      painter: _PixelPainter(rows, color, pixel),
+    );
+  }
+}
+
+/// Big blocky letters, used for the dashboard banner.
+class PixelBanner extends StatelessWidget {
+  const PixelBanner(this.text, {super.key, required this.color, this.pixel = 8});
+
+  final String text;
+  final Color color;
+  final double pixel;
+
   static const _glyphs = {
-    'O': ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
-    'R': ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
-    'G': ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.###.'],
-    'P': ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
     'A': ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
     'D': ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
+    'E': ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+    'G': ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.###.'],
+    'H': ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+    'O': ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+    'P': ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+    'R': ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
+    'S': ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
+    'U': ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+    'X': ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
   };
+
+  /// Width of [text] in squares.
+  static int widthOf(String text) => text.isEmpty ? 0 : text.length * 6 - 1;
 
   List<String> get _rows {
     final rows = List.filled(7, '');
@@ -86,17 +136,11 @@ class PixelBanner extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final rows = _rows;
-    return CustomPaint(
-      size: Size(rows.first.length * pixel, rows.length * pixel),
-      painter: _BannerPainter(rows, color, pixel),
-    );
-  }
+  Widget build(BuildContext context) => PixelArt(_rows, color: color, pixel: pixel);
 }
 
-class _BannerPainter extends CustomPainter {
-  _BannerPainter(this.rows, this.color, this.pixel);
+class _PixelPainter extends CustomPainter {
+  _PixelPainter(this.rows, this.color, this.pixel);
 
   final List<String> rows;
   final Color color;
@@ -127,6 +171,6 @@ class _BannerPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _BannerPainter old) =>
+  bool shouldRepaint(covariant _PixelPainter old) =>
       old.color != color || old.pixel != pixel || old.rows.join() != rows.join();
 }

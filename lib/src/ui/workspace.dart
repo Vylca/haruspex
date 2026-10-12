@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import '../app/document.dart';
 import '../app/settings.dart';
 import '../app/vault.dart';
+import '../app/version.dart';
 import '../editor/highlighter.dart';
 import '../editor/org_editor.dart';
 import '../editor/org_theme.dart';
@@ -927,11 +928,16 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
         child: ColoredBox(
           color: t.background,
           child: LayoutBuilder(builder: (context, c) {
-            final big = c.maxWidth > 760 && c.maxHeight > 620;
+            // Whole-pixel squares, as large as the space allows.
+            final short = c.maxHeight < 600;
+            final fit = ((c.maxWidth - 64) / PixelBanner.widthOf('HARUSPEX')).floorToDouble();
+            final pixel = fit.clamp(3.0, short ? 6.0 : 10.0);
             return Center(
               child: SingleChildScrollView(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  PixelBanner('ORGPAD', color: t.accent, pixel: big ? 16 : 8),
+                  PixelArt(logoRows, color: t.accent, pixel: short ? 3 : 4),
+                  SizedBox(height: short ? 12 : 20),
+                  PixelBanner('HARUSPEX', color: t.accent, pixel: pixel),
                   const SizedBox(height: 12),
                   Text(
                     v == null ? 'plain text, org mode' : 'vault: ${v.name}',
@@ -950,7 +956,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
                       row('${i + 1}', baseName(recent[i]), '', () => openPath(recent[i])),
                   ],
                   const SizedBox(height: 28),
-                  Text('OrgPad 0.2', style: base.copyWith(color: t.faint)),
+                  Text('Haruspex $appVersion', style: base.copyWith(color: t.faint)),
                 ]),
               ),
             );
@@ -1096,7 +1102,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
               SubmenuButton(menuChildren: [
                 item('Keyboard shortcuts', () => showKeyBindings(context)),
                 item('Tutorial', () => _addDoc(_newDoc(tutorialText))),
-                item('About', () => showInfo(context, 'OrgPad', 'A plain text editor built on Org mode.\nVersion 0.2.')),
+                item('About', () => showInfo(context, 'Haruspex', 'A plain text editor built on Org mode.\nVersion $appVersion.')),
               ], child: const Text('Help')),
             ],
           ),

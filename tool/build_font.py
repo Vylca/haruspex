@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Builds the OrgPad pixel font from Spleen 8x16 (BSD 2-Clause, Frederic
+"""Builds the Haruspex pixel font from Spleen 8x16 (BSD 2-Clause, Frederic
 Cambus, https://github.com/fcambus/spleen).
 
 Every pixel of the bitmap becomes a square in the outline, so at 16 px (and
-32 px, 48 px...) the text renders as crisp pixels. A few symbols OrgPad uses
+32 px, 48 px...) the text renders as crisp pixels. A few symbols Haruspex uses
 for bullets are added in the same style.
 
     python3 tool/build_font.py path/to/spleen-8x16.bdf assets/fonts
@@ -249,11 +249,11 @@ def build(glyphs, out_path, bold):
     fb.setupNameTable({
         "familyName": "Spleen",
         "styleName": style,
-        "uniqueFontIdentifier": f"Spleen-{style}-OrgPad",
+        "uniqueFontIdentifier": f"Spleen-{style}-Haruspex",
         "fullName": f"Spleen {style}",
         "psName": f"Spleen-{style}",
         "version": "Version 2.2.0",
-        "copyright": "Copyright (c) 2018-2026, Frederic Cambus. Outline conversion for OrgPad.",
+        "copyright": "Copyright (c) 2018-2026, Frederic Cambus. Outline conversion for Haruspex.",
         "licenseDescription": "BSD 2-Clause License",
     })
     fb.setupOS2(
@@ -262,7 +262,7 @@ def build(glyphs, out_path, bold):
         sxHeight=7 * PX, sCapHeight=10 * PX,
         usWeightClass=700 if bold else 400,
         fsSelection=0x20 if bold else 0x40,
-        achVendID="ORGP",
+        achVendID="HRSP",
     )
     fb.font["OS/2"].panose.bProportion = 9  # monospaced
     fb.font["head"].macStyle = 1 if bold else 0

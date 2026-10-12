@@ -15,11 +15,11 @@ Future<void> main(List<String> args) async {
   });
   final settings = AppSettings();
   await settings.load();
-  runApp(OrgPadApp(settings: settings, initialFiles: args));
+  runApp(HaruspexApp(settings: settings, initialFiles: args));
 }
 
-class OrgPadApp extends StatelessWidget {
-  const OrgPadApp({super.key, required this.settings, required this.initialFiles});
+class HaruspexApp extends StatelessWidget {
+  const HaruspexApp({super.key, required this.settings, required this.initialFiles});
 
   final AppSettings settings;
   final List<String> initialFiles;
@@ -30,7 +30,7 @@ class OrgPadApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: settings,
       builder: (context, _) => MaterialApp(
-        title: 'OrgPad',
+        title: 'Haruspex',
         debugShowCheckedModeBanner: false,
         themeMode: ThemeMode.dark,
         theme: theme,

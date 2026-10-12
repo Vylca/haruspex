@@ -1,15 +1,19 @@
-# OrgPad
+# Haruspex
+
+![Haruspex](assets/icon/haruspex.png)
+
+The logo is the alchemical symbol for earth.
 
 A plain text editor for Linux (Android later) that uses Org mode as its
 backbone. Files stay ordinary `.org` / `.txt` text, compatible with Emacs.
 
 ## Install (Linux)
 
-Every push to `main` is built on GitHub. Download `orgpad-linux-x64.tar.gz`
+Every push to `main` is built on GitHub. Download `haruspex-linux-x64.tar.gz`
 from the [latest release](../../releases/tag/latest), then:
 
 ```sh
-cd /tmp && tar -xzf ~/Downloads/orgpad-linux-x64.tar.gz && ./orgpad/install.sh
+cd /tmp && tar -xzf ~/Downloads/haruspex-linux-x64.tar.gz && ./haruspex/install.sh
 ```
 
 The same command updates an existing install.
@@ -33,15 +37,15 @@ The same command updates an existing install.
 2. Build:
 
    ```sh
-   ./build.sh            # app ends up in build/linux/x64/release/bundle/orgpad
+   ./build.sh            # app ends up in build/linux/x64/release/bundle/haruspex
    ./build.sh --install  # also installs to ~/.local with a menu entry
    ```
 
-3. Run: `orgpad notes.org` (or from the app menu after `--install`).
+3. Run: `haruspex notes.org` (or from the app menu after `--install`).
 
 No Flutter on your machine? Push the folder to a GitHub repository: the
 included workflow (`.github/workflows/build.yml`) builds the app, runs the
-tests and attaches `orgpad-linux-x64.tar.gz` to the run.
+tests and attaches `haruspex-linux-x64.tar.gz` to the run.
 
 ## What works in this proof of concept
 
@@ -64,9 +68,9 @@ tests and attaches `orgpad-linux-x64.tar.gz` to the run.
 - org-superstar look: bullets for headings and list items (toggle in Settings)
 - org-indent look: text lines up under its heading, wrapped lines included
 - Folders as vaults (like Obsidian): File > Open folder as vault, or
-  `orgpad ~/notes`. File tree with new/rename/trash, Ctrl+P quick switcher,
+  `haruspex ~/notes`. File tree with new/rename/trash, Ctrl+P quick switcher,
   `[[Note name]]` links to other notes, open tabs restored, agenda over the
-  whole folder. The folder gets a small `.orgpad` directory for its state.
+  whole folder. The folder gets a small `.haruspex` directory for its state.
 - Look: black and orange, square and flat, after Doom Emacs. Line numbers,
   current line highlight, a mode line and echo area, a dashboard with one key
   shortcuts when nothing is open
@@ -89,7 +93,7 @@ lib/src/org/      Org logic without UI: parsing, tables, lists, timestamps,
                   structure edits, agenda
 lib/src/editor/   text controller, highlighter, folding, key handling
 lib/src/ui/       window, menus, dialogs, agenda, outline, theme
-assets/           pixel font and app icon
+assets/           pixel font and logo
 tool/             scripts that generate the font and the icon
 test/             unit and widget tests (flutter test)
 ```
