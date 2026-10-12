@@ -34,6 +34,7 @@ class HaruspexApp extends StatelessWidget {
       builder: (context, _) => MaterialApp(
         title: 'Haruspex',
         debugShowCheckedModeBanner: false,
+        scrollBehavior: const HaruspexScrollBehavior(),
         themeMode: ThemeMode.dark,
         theme: theme,
         darkTheme: theme,

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:haruspex/main.dart';
@@ -104,6 +105,27 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pump();
     expect(c.text, '* TODO Task');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Ctrl+mouse wheel zooms instead of scrolling', (tester) async {
+    final state = await startEditor(tester, List.generate(200, (i) => 'line $i').join('\n'));
+    final settings = state.widget.settings;
+    final before = settings.fontSize;
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(tester.getCenter(find.byType(OrgEditor)));
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, -53)));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(settings.fontSize, before + 1);
+    expect(state.doc.scroll.offset, 0);
+
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 53)));
+    await tester.pump();
+    expect(settings.fontSize, before + 1);
+    expect(state.doc.scroll.offset, greaterThan(0));
     expect(tester.takeException(), isNull);
   });
 }

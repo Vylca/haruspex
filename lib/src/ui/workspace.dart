@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' show AppExitResponse, AppExitType;
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -807,10 +809,11 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final t = orgTheme;
     final d = doc;
     final v = vault;
-    final line = Container(width: 1, color: t.border);
     return Scaffold(
       backgroundColor: t.background,
-      body: WindowChrome.resizable(CallbackShortcuts(
+      body: WindowChrome.resizable(Listener(
+        onPointerSignal: _onPointerSignal,
+        child: CallbackShortcuts(
         bindings: _shortcuts,
         child: Column(children: [
           TitleBar(
@@ -821,49 +824,116 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           ),
           if (docs.isNotEmpty) _tabBar(context, t),
           Expanded(
-            child: Row(children: [
-              if (v != null && settings.showFiles) ...[
-                SizedBox(
-                  width: 260,
-                  child: FileTreePanel(
-                    vault: v,
-                    theme: t,
-                    activePath: d?.path,
-                    onOpen: (p) => openPath(p),
-                    onAction: _treeAction,
+            child: LayoutBuilder(builder: (context, box) {
+              final showFiles = v != null && settings.showFiles;
+              final showOutline = settings.showOutline && d != null;
+              // Keep at least this much room for the text.
+              const minEditor = 320.0;
+              final double files = showFiles
+                  ? _filesWidth.clamp(_minPanel,
+                      math.max<double>(_minPanel, box.maxWidth - minEditor - (showOutline ? _outlineWidth : 0.0)))
+                  : 0.0;
+              final double outline = showOutline
+                  ? _outlineWidth.clamp(_minPanel, math.max<double>(_minPanel, box.maxWidth - minEditor - files))
+                  : 0.0;
+              return Row(children: [
+                if (v != null && showFiles) ...[
+                  SizedBox(
+                    width: files,
+                    child: FileTreePanel(
+                      vault: v,
+                      theme: t,
+                      activePath: d?.path,
+                      onOpen: (p) => openPath(p),
+                      onAction: _treeAction,
+                    ),
                   ),
-                ),
-                line,
-              ],
-              Expanded(
-                child: docs.isEmpty
-                    ? _dashboard(context, t)
-                    : IndexedStack(
-                        index: current.clamp(0, docs.length - 1),
-                        children: [
-                          for (final x in docs)
-                            OrgEditor(key: _editorKeys[x.id], doc: x, host: this, settings: settings),
-                        ],
-                      ),
-              ),
-              if (settings.showOutline && d != null) ...[
-                line,
-                SizedBox(
-                  width: 270,
-                  child: OutlinePanel(
-                    doc: d,
+                  PanelSplitter(
                     theme: t,
-                    onJump: (line) => editor?.jumpToLine(line),
+                    onDrag: (dx) => setState(() => _dragFiles = files + dx),
+                    onDragEnd: () => _saveWidths(),
+                    onReset: () => settings.update((s) => s.filesWidth = AppSettings.defaultFilesWidth),
                   ),
+                ],
+                Expanded(
+                  child: docs.isEmpty
+                      ? _dashboard(context, t)
+                      : IndexedStack(
+                          index: current.clamp(0, docs.length - 1),
+                          children: [
+                            for (final x in docs)
+                              OrgEditor(key: _editorKeys[x.id], doc: x, host: this, settings: settings),
+                          ],
+                        ),
                 ),
-              ],
-            ]),
+                if (d != null && showOutline) ...[
+                  PanelSplitter(
+                    theme: t,
+                    onDrag: (dx) => setState(() => _dragOutline = outline - dx),
+                    onDragEnd: () => _saveWidths(),
+                    onReset: () => settings.update((s) => s.outlineWidth = AppSettings.defaultOutlineWidth),
+                  ),
+                  SizedBox(
+                    width: outline,
+                    child: OutlinePanel(
+                      doc: d,
+                      theme: t,
+                      onJump: (line) => editor?.jumpToLine(line),
+                    ),
+                  ),
+                ],
+              ]);
+            }),
           ),
           _modeLine(context, t),
           _findVisible ? _findBar(context, t) : _echoArea(t),
         ]),
-      )),
+      ))),
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Side panel widths and Ctrl+wheel zoom
+  // -------------------------------------------------------------------------
+
+  static const double _minPanel = 140;
+
+  /// Widths while a splitter is being dragged; saved when the drag ends.
+  double? _dragFiles, _dragOutline;
+
+  double get _filesWidth => _dragFiles ?? settings.filesWidth;
+  double get _outlineWidth => _dragOutline ?? settings.outlineWidth;
+
+  void _saveWidths() {
+    final f = _dragFiles, o = _dragOutline;
+    _dragFiles = null;
+    _dragOutline = null;
+    settings.update((s) {
+      if (f != null) s.filesWidth = math.max<double>(_minPanel, f).roundToDouble();
+      if (o != null) s.outlineWidth = math.max<double>(_minPanel, o).roundToDouble();
+    });
+  }
+
+  double _wheel = 0;
+
+  /// Ctrl+mouse wheel zooms. Scroll views ignore the wheel while Ctrl is
+  /// held (see HaruspexScrollBehavior), so the event comes here.
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent || !HardwareKeyboard.instance.isControlPressed) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (e) {
+      if (e is! PointerScrollEvent) return;
+      _wheel += e.scrollDelta.dy;
+      // One wheel notch is about 53 pixels.
+      while (_wheel <= -40) {
+        _wheel += 53;
+        _zoom(1);
+      }
+      while (_wheel >= 40) {
+        _wheel -= 53;
+        _zoom(-1);
+      }
+      if (_wheel.abs() < 40) _wheel = 0;
+    });
   }
 
   // -------------------------------------------------------------------------

@@ -193,3 +193,59 @@ class _PixelPainter extends CustomPainter {
   bool shouldRepaint(covariant _PixelPainter old) =>
       old.color != color || old.pixel != pixel || old.rows.join() != rows.join();
 }
+
+/// The line between two panels. Drag it to resize them, double click to go
+/// back to the default size.
+class PanelSplitter extends StatefulWidget {
+  const PanelSplitter({
+    super.key,
+    required this.theme,
+    required this.onDrag,
+    this.onDragEnd,
+    this.onReset,
+  });
+
+  final OrgTheme theme;
+
+  /// Called with the horizontal movement since the last update.
+  final ValueChanged<double> onDrag;
+  final VoidCallback? onDragEnd;
+  final VoidCallback? onReset;
+
+  @override
+  State<PanelSplitter> createState() => _PanelSplitterState();
+}
+
+class _PanelSplitterState extends State<PanelSplitter> {
+  bool _hot = false;
+  bool _dragging = false;
+
+  void _end() {
+    if (!_dragging) return;
+    setState(() => _dragging = false);
+    widget.onDragEnd?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    final lit = _hot || _dragging;
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      onEnter: (_) => setState(() => _hot = true),
+      onExit: (_) => setState(() => _hot = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragStart: (_) => setState(() => _dragging = true),
+        onHorizontalDragUpdate: (d) => widget.onDrag(d.delta.dx),
+        onHorizontalDragEnd: (_) => _end(),
+        onHorizontalDragCancel: _end,
+        onDoubleTap: widget.onReset,
+        child: SizedBox(
+          width: 5,
+          child: Center(child: Container(width: lit ? 2 : 1, color: lit ? t.accent : t.border)),
+        ),
+      ),
+    );
+  }
+}

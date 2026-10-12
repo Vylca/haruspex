@@ -33,6 +33,13 @@ class AppSettings extends ChangeNotifier {
   bool foldDrawers = true;
   bool showOutline = false;
   bool showFiles = true;
+
+  static const double defaultFilesWidth = 260;
+  static const double defaultOutlineWidth = 270;
+
+  /// Widths of the file tree and the outline, set by dragging their edges.
+  double filesWidth = defaultFilesWidth;
+  double outlineWidth = defaultOutlineWidth;
   double maxWidth = 860;
   List<String> recentFiles = [];
   List<String> agendaFiles = [];
@@ -81,6 +88,8 @@ class AppSettings extends ChangeNotifier {
       foldDrawers = j['foldDrawers'] as bool? ?? foldDrawers;
       showOutline = j['showOutline'] as bool? ?? showOutline;
       showFiles = j['showFiles'] as bool? ?? showFiles;
+      filesWidth = (j['filesWidth'] as num?)?.toDouble() ?? filesWidth;
+      outlineWidth = (j['outlineWidth'] as num?)?.toDouble() ?? outlineWidth;
       maxWidth = (j['maxWidth'] as num?)?.toDouble() ?? maxWidth;
       recentFiles = (j['recentFiles'] as List?)?.cast<String>() ?? recentFiles;
       agendaFiles = (j['agendaFiles'] as List?)?.cast<String>() ?? agendaFiles;
@@ -112,6 +121,8 @@ class AppSettings extends ChangeNotifier {
         'foldDrawers': foldDrawers,
         'showOutline': showOutline,
         'showFiles': showFiles,
+        'filesWidth': filesWidth,
+        'outlineWidth': outlineWidth,
         'maxWidth': maxWidth,
         'recentFiles': recentFiles,
         'agendaFiles': agendaFiles,
