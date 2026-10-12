@@ -28,8 +28,17 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Analyze
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          flutter --version | tee ci.log
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee -a ci.log
+
       - name: Build
-        run: flutter build linux --release
+        run: |
+          set -o pipefail
+          flutter build linux --release 2>&1 | tee -a ci.log
 
       - name: Package
         run: |
@@ -54,10 +63,21 @@ jobs:
             --notes "Built from ${GITHUB_SHA::7}" \
             --target "$GITHUB_SHA"
 
-      - name: Analyze
-        if: always()
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
       - name: Test
         if: always()
-        run: flutter test
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee -a ci.log
+
+      - name: Publish the build log
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          touch ci.log
+          gh release delete ci-log --yes --cleanup-tag || true
+          gh release create ci-log ci.log \
+            --prerelease \
+            --title "Build log" \
+            --notes "Log of the last build, ${GITHUB_SHA::7}" \
+            --target "$GITHUB_SHA"
