@@ -1992,7 +1992,12 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
         _rpad = math.max<double>(0.0, w - _hpad - _textWidth);
         _viewportHeight = constraints.maxHeight;
         _relayout();
-        return ColoredBox(
+        // Fill the space even when the text is short: a short scroll view
+        // would otherwise shrink and be centered by the row around it.
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: ColoredBox(
           color: _theme.background,
           child: Listener(
             key: _viewportKey,
@@ -2008,7 +2013,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
               ),
             ),
           ),
-        );
+        ));
       }),
     );
   }

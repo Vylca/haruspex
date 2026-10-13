@@ -900,7 +900,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
               final double outline = showOutline
                   ? _outlineWidth.clamp(_minPanel, math.max<double>(_minPanel, box.maxWidth - minEditor - files))
                   : 0.0;
-              return Row(children: [
+              return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (v != null && showFiles) ...[
                   SizedBox(
                     width: files,
