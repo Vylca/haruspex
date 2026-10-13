@@ -39,11 +39,16 @@ mkdir -p "$dest" "$HOME/.local/bin" "$apps" "$icons/256x256/apps"
 cp -r "$bundle"/. "$dest"/
 ln -sf "$dest/haruspex" "$HOME/.local/bin/haruspex"
 
-icon="$dest/data/flutter_assets/assets/icon/haruspex.png"
-if [ -f "$icon" ]; then
-  cp "$icon" "$icons/256x256/apps/haruspex.png"
-  gtk-update-icon-cache -q -t "$icons" >/dev/null 2>&1 || true
+icon="$dest/data/flutter_assets/assets/icon"
+if [ -f "$icon/haruspex.png" ]; then
+  cp "$icon/haruspex.png" "$icons/256x256/apps/haruspex.png"
 fi
+if [ -f "$icon/haruspex.svg" ]; then
+  mkdir -p "$icons/scalable/apps"
+  cp "$icon/haruspex.svg" "$icons/scalable/apps/haruspex.svg"
+fi
+touch "$icons"
+gtk-update-icon-cache -q -t "$icons" >/dev/null 2>&1 || true
 
 # Named after the app id so docks and window switchers find the icon.
 cat > "$apps/$id.desktop" <<EOF

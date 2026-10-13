@@ -1053,7 +1053,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           child: Column(children: [
             Text(text, textAlign: TextAlign.center, style: base.copyWith(color: t.levels[1], fontStyle: FontStyle.italic)),
             const SizedBox(height: 4),
-            Text('Aleister Crowley, Liber AL $verse', textAlign: TextAlign.center, style: base.copyWith(color: t.faint)),
+            Text('Liber AL $verse', textAlign: TextAlign.center, style: base.copyWith(color: t.faint)),
           ]),
         ),
       ),
@@ -1121,13 +1121,12 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
                   PixelArt(logoRows, color: t.accent, pixel: short ? 3 : 4),
                   SizedBox(height: short ? 12 : 20),
                   PixelBanner('HARUSPEX', color: t.accent, pixel: pixel),
-                  const SizedBox(height: 12),
-                  Text(
-                    v == null ? 'plain text, org mode' : 'vault: ${v.name}',
-                    style: base.copyWith(color: t.faint),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   _quote(t, base),
+                  if (v != null) ...[
+                    const SizedBox(height: 16),
+                    Text('vault: ${v.name}', style: base.copyWith(color: t.faint)),
+                  ],
                   const SizedBox(height: 24),
                   for (final (k, label, hint, run) in items) row(k, label, hint, run),
                   if (recent.isNotEmpty) ...[

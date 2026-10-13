@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -87,20 +89,64 @@ const List<String> logoRows = [
   '.............#.............',
 ];
 
-/// The logo with one pixel strokes, for the title bar.
-const List<String> smallLogoRows = [
-  '#############',
-  '#...........#',
-  '.#.........#.',
-  '..#.......#..',
-  '..#.......#..',
-  '.###########.',
-  '....#...#....',
-  '....#...#....',
-  '.....#.#.....',
-  '......#......',
-  '......#......',
-];
+/// The Haruspex logo as a vector: a downward triangle crossed by a bar that
+/// reaches a little past its sides. Same geometry as the app icon
+/// (tool/build_icon.py).
+class EarthLogo extends StatelessWidget {
+  const EarthLogo({super.key, required this.color, this.width = 14, this.stroke});
+
+  final Color color;
+
+  /// Width of the outer edges, in logical pixels.
+  final double width;
+
+  /// Line thickness, about 8% of [width] by default.
+  final double? stroke;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, width * math.sqrt(3) / 2),
+      painter: _EarthPainter(color, stroke ?? width * 11 / 140),
+    );
+  }
+}
+
+class _EarthPainter extends CustomPainter {
+  _EarthPainter(this.color, this.stroke);
+
+  final Color color;
+  final double stroke;
+
+  static const _barAt = 0.42;
+  static const _overhang = 0.106;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final d = stroke / 2;
+    final side = size.width - 2 * math.sqrt(3) * d;
+    final r = side / (2 * math.sqrt(3));
+    final h = side * math.sqrt(3) / 2;
+    final cx = size.width / 2;
+    final y0 = d;
+    final cy = y0 + r;
+    final tri = [Offset(cx - side / 2, y0), Offset(cx + side / 2, y0), Offset(cx, y0 + h)];
+    List<Offset> scaled(double k) => [for (final p in tri) Offset(cx + (p.dx - cx) * k, cy + (p.dy - cy) * k)];
+    // The outer triangle minus the inner one: mitered corners.
+    final outline = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addPolygon(scaled((r + d) / r), true)
+      ..addPolygon(scaled((r - d) / r), true);
+    final barY = y0 + _barAt * h;
+    final half = side / 2 * (1 - _barAt) + _overhang * side;
+    final paint = Paint()..color = color;
+    canvas.drawPath(outline, paint);
+    canvas.drawRect(Rect.fromLTRB(cx - half, barY - d, cx + half, barY + d), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _EarthPainter old) => old.color != color || old.stroke != stroke;
+}
 
 /// Pixel art from rows of '#' (filled) and '.' (empty), drawn as squares.
 class PixelArt extends StatelessWidget {

@@ -22,6 +22,7 @@ flutter:
   assets:
     - assets/fonts/NOTICE-PCDOS.txt
     - assets/icon/haruspex.png
+    - assets/icon/haruspex.svg
   fonts:
     # The IBM PC DOS 2000 ISO 9241-3 text mode font (8x16), converted to
     # outlines by tool/build_font.py so it renders as crisp pixels at 16 px.

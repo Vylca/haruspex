@@ -166,7 +166,7 @@ class _TitleBarState extends State<TitleBar> with WindowListener {
       child: Row(children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: PixelArt(smallLogoRows, color: t.accent, pixel: 1),
+          child: EarthLogo(color: t.accent, width: 14, stroke: 1.5),
         ),
         widget.menu,
         Expanded(child: title),
