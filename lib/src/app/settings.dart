@@ -25,9 +25,6 @@ class AppSettings extends ChangeNotifier {
   /// Line numbers in a gutter on the left.
   bool lineNumbers = true;
 
-  /// Center the text column instead of starting it at the left edge.
-  bool centerText = false;
-
   /// Indent body text to line up with its heading (like org-indent-mode).
   bool indentBody = true;
   bool foldDrawers = true;
@@ -40,7 +37,6 @@ class AppSettings extends ChangeNotifier {
   /// Widths of the file tree and the outline, set by dragging their edges.
   double filesWidth = defaultFilesWidth;
   double outlineWidth = defaultOutlineWidth;
-  double maxWidth = 860;
   List<String> recentFiles = [];
   List<String> agendaFiles = [];
   bool tutorialShown = false;
@@ -86,7 +82,6 @@ class AppSettings extends ChangeNotifier {
       }
       hideMarkup = j['hideMarkup'] as bool? ?? hideMarkup;
       lineNumbers = j['lineNumbers'] as bool? ?? lineNumbers;
-      centerText = j['centerText'] as bool? ?? centerText;
       superstar = j['superstar'] as bool? ?? superstar;
       indentBody = j['indentBody'] as bool? ?? indentBody;
       foldDrawers = j['foldDrawers'] as bool? ?? foldDrawers;
@@ -94,7 +89,6 @@ class AppSettings extends ChangeNotifier {
       showFiles = j['showFiles'] as bool? ?? showFiles;
       filesWidth = (j['filesWidth'] as num?)?.toDouble() ?? filesWidth;
       outlineWidth = (j['outlineWidth'] as num?)?.toDouble() ?? outlineWidth;
-      maxWidth = (j['maxWidth'] as num?)?.toDouble() ?? maxWidth;
       recentFiles = (j['recentFiles'] as List?)?.cast<String>() ?? recentFiles;
       agendaFiles = (j['agendaFiles'] as List?)?.cast<String>() ?? agendaFiles;
       tutorialShown = j['tutorialShown'] as bool? ?? tutorialShown;
@@ -120,14 +114,12 @@ class AppSettings extends ChangeNotifier {
         'scaleHeadings': scaleHeadings,
         'superstar': superstar,
         'lineNumbers': lineNumbers,
-        'centerText': centerText,
         'indentBody': indentBody,
         'foldDrawers': foldDrawers,
         'showOutline': showOutline,
         'showFiles': showFiles,
         'filesWidth': filesWidth,
         'outlineWidth': outlineWidth,
-        'maxWidth': maxWidth,
         'recentFiles': recentFiles,
         'agendaFiles': agendaFiles,
         'tutorialShown': tutorialShown,

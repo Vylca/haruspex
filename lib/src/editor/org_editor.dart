@@ -1982,13 +1982,9 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
         // Whole pixels everywhere, so a pixel font stays on the pixel grid.
         final w = constraints.maxWidth;
         final left = s.lineNumbers ? _gutterWidth(c.analysis.lineCount) + _gutterGap : 20.0;
-        if (s.centerText) {
-          _hpad = math.max<double>(left, (w - s.maxWidth) / 2).roundToDouble();
-          _textWidth = math.max<double>(60.0, w - 2 * _hpad).floorToDouble();
-        } else {
-          _hpad = left;
-          _textWidth = math.max<double>(60.0, math.min<double>(s.maxWidth, w - left - 20)).floorToDouble();
-        }
+        // The text fills the editor: it wraps at the right edge.
+        _hpad = left;
+        _textWidth = math.max<double>(60.0, w - left - 20).floorToDouble();
         _rpad = math.max<double>(0.0, w - _hpad - _textWidth);
         _viewportHeight = constraints.maxHeight;
         _relayout();
