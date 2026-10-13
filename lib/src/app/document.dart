@@ -84,8 +84,9 @@ class OrgDocument extends ChangeNotifier {
       text = const Latin1Codec().decode(bytes);
       isLatin1 = true;
     }
-    final hasBom = text.startsWith('\ufeff');
-    if (hasBom) text = text.substring(1);
+    // The UTF-8 decoder drops a leading byte order mark; look at the bytes.
+    final hasBom = !isLatin1 && bytes.length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+    if (text.startsWith('\ufeff')) text = text.substring(1);
     final crlf = text.contains('\r\n');
     if (crlf) text = text.replaceAll('\r\n', '\n');
     final doc = OrgDocument(highlighter: highlighter, text: text, path: path)
