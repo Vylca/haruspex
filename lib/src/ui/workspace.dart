@@ -1532,7 +1532,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       context: context,
       position: RelativeRect.fromRect(at & const Size(1, 1), Offset.zero & overlay.size),
       items: [
-        entry('auto', 'Automatic (#+LANGUAGE, then Settings)', current == null),
+        entry('auto', 'Automatic', current == null),
         const PopupMenuDivider(height: 1),
         for (final dict in svc.dictionaries) entry('=${dict.code}', '${dict.name}  ${dict.code}', current == dict.code),
         const PopupMenuDivider(height: 1),
