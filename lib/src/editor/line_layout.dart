@@ -47,6 +47,12 @@ class LineLayoutCache {
     return made;
   }
 
+  /// Keeps a layout from the previous pass for this pass.
+  void keep(String key, LineLayout layout) {
+    _entries.remove(key);
+    _next[key] = layout;
+  }
+
   /// Ends a layout pass: everything not requested since the last call is
   /// disposed after the current frame.
   void endPass() {

@@ -40,6 +40,20 @@ class OrgEditor extends StatefulWidget {
   State<OrgEditor> createState() => OrgEditorState();
 }
 
+/// A laid out line from the last layout pass, with what its look depends on.
+class _LineEntry {
+  _LineEntry(this.key, this.text, this.kind, this.block, this.header, this.active, this.indent, this.layout);
+
+  final String key;
+  final String text;
+  final LineKind kind;
+  final String? block;
+  final bool header;
+  final bool active;
+  final double indent;
+  final LineLayout layout;
+}
+
 class _CaretGeometry {
   _CaretGeometry(this.index, this.rect, this.lineTop, this.lineBottom);
 
@@ -130,6 +144,8 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
 
   // Layout of the visible lines, refreshed by [_relayout].
   final LineLayoutCache _cache = LineLayoutCache();
+  List<_LineEntry> _lineEntries = const [];
+  String _lineEnv = '';
   List<int> _visible = const [];
   List<LineLayout> _layouts = const [];
   List<double> _tops = const [];
@@ -185,6 +201,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
   void initState() {
     super.initState();
     _lastValue = c.value;
+    _remoteValue(c.value);
     c.addListener(_onControllerChanged);
     doc.focusNode.addListener(_onFocusChanged);
   }
@@ -235,13 +252,12 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       _lastEdit = _structural ? DateTime(0) : now;
     }
     _lastValue = v;
+    // Always recomputed, so the input method's lines match the document.
+    final rv = _remoteValue(v);
     final conn = _connection;
-    if (conn != null && conn.attached) {
-      final rv = _remoteValue(v);
-      if (rv != _lastRemote) {
-        _lastRemote = rv;
-        conn.setEditingState(rv);
-      }
+    if (conn != null && conn.attached && rv != _lastRemote) {
+      _lastRemote = rv;
+      conn.setEditingState(rv);
     }
     _restartBlink();
     if (mounted) setState(() {});
@@ -259,9 +275,39 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
   // Platform text input
   // -------------------------------------------------------------------------
 
+  /// The input method only sees the lines around the caret, from
+  /// [_remoteStart] to [_remoteEnd] in the document, so typing in a big
+  /// document does not send the whole text on every key.
+  int _remoteStart = 0;
+  int _remoteEnd = 0;
+
   TextEditingValue _remoteValue(TextEditingValue v) {
-    if (v.selection.isValid) return v;
-    return v.copyWith(selection: TextSelection.collapsed(offset: v.text.length));
+    final text = v.text;
+    final sel = v.selection.isValid ? v.selection : TextSelection.collapsed(offset: text.length);
+    final comp = v.composing;
+    final hasComp = comp.isValid && !comp.isCollapsed;
+    var lo = sel.start, hi = sel.end;
+    if (hasComp) {
+      lo = math.min<int>(lo, comp.start);
+      hi = math.max<int>(hi, comp.end);
+    }
+    lo = lo.clamp(0, text.length);
+    hi = hi.clamp(lo, text.length);
+    final start = lo == 0 ? 0 : text.lastIndexOf('\n', lo - 1) + 1;
+    var end = text.indexOf('\n', hi);
+    if (end < 0) end = text.length;
+    _remoteStart = start;
+    _remoteEnd = end;
+    return TextEditingValue(
+      text: text.substring(start, end),
+      selection: TextSelection(
+        baseOffset: sel.baseOffset.clamp(start, end) - start,
+        extentOffset: sel.extentOffset.clamp(start, end) - start,
+        affinity: sel.affinity,
+        isDirectional: sel.isDirectional,
+      ),
+      composing: hasComp ? TextRange(start: comp.start - start, end: comp.end - start) : TextRange.empty,
+    );
   }
 
   void _openConnection() {
@@ -321,9 +367,28 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
   @override
   void updateEditingValue(TextEditingValue value) {
     _lastRemote = value;
-    if (value == c.value) return;
+    // Put the input method's lines back into the document.
+    final full = c.value;
+    final start = _remoteStart.clamp(0, full.text.length);
+    final end = _remoteEnd.clamp(start, full.text.length);
+    final sel = value.selection;
+    final comp = value.composing;
+    final next = TextEditingValue(
+      text: full.text.replaceRange(start, end, value.text),
+      selection: sel.isValid
+          ? TextSelection(
+              baseOffset: sel.baseOffset + start,
+              extentOffset: sel.extentOffset + start,
+              affinity: sel.affinity,
+              isDirectional: sel.isDirectional,
+            )
+          : full.selection,
+      composing: comp.isValid ? TextRange(start: comp.start + start, end: comp.end + start) : TextRange.empty,
+    );
+    if (next == full) return;
+    _remoteEnd = start + value.text.length;
     _goalX = null;
-    c.value = value;
+    c.value = next;
     revealCaret();
   }
 
@@ -391,31 +456,64 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     }
     final hl = c.highlighter;
     final salt = an.todo.all.join(',');
+    // Lines are matched against the previous pass by their common prefix and
+    // suffix, so an edit or a caret move only lays out the lines it touched.
+    final env = '$salt|$_textWidth|$_styleSig';
+    final old = env == _lineEnv ? _lineEntries : const <_LineEntry>[];
+    final n = visible.length, m = old.length;
+    var p = 0;
+    while (p < n && p < m && old[p].text == an.lines[visible[p]]) {
+      p++;
+    }
+    var q = 0;
+    while (q < n - p && q < m - p && old[m - 1 - q].text == an.lines[visible[n - 1 - q]]) {
+      q++;
+    }
+    final entries = <_LineEntry>[];
     final layouts = <LineLayout>[];
     final tops = <double>[];
     var y = 0.0;
     var caretIndex = -1;
     final caretL = sel.isValid ? an.lineOfOffset(sel.extentOffset.clamp(0, an.text.length)) : -1;
-    for (var k = 0; k < visible.length; k++) {
+    for (var k = 0; k < n; k++) {
       final i = visible[k];
       if (i == caretL) caretIndex = k;
+      final info = an.infos[i];
       final active = i >= from && i <= to;
       final indent = _indentFor(an, i);
-      final width = math.max<double>(10.0, _textWidth - indent - 4);
-      final lineKey = hl.lineKey(an, i, active, salt);
-      final lay = _cache.get('$lineKey|$indent|$width|$_styleSig', () {
-        final spans = hl.lineSpans(an, i, active, lineKey);
-        final painter = TextPainter(
-          text: TextSpan(style: _baseStyle, children: spans),
-          textDirection: TextDirection.ltr,
-          textScaler: _textScaler,
-        )..layout(maxWidth: width);
-        return LineLayout(painter, indent);
-      });
+      final header = info.kind == LineKind.table && hl.isHeaderRow(an, i);
+      final prev = k < p ? old[k] : (k >= n - q ? old[k - n + m] : null);
+      _LineEntry entry;
+      if (prev != null &&
+          prev.kind == info.kind &&
+          prev.block == info.blockType &&
+          prev.header == header &&
+          prev.active == active &&
+          prev.indent == indent) {
+        _cache.keep(prev.key, prev.layout);
+        entry = prev;
+      } else {
+        final width = math.max<double>(10.0, _textWidth - indent - 4);
+        final lineKey = hl.lineKey(an, i, active, salt);
+        final key = '$lineKey|$indent|$width|$_styleSig';
+        final lay = _cache.get(key, () {
+          final spans = hl.lineSpans(an, i, active, lineKey);
+          final painter = TextPainter(
+            text: TextSpan(style: _baseStyle, children: spans),
+            textDirection: TextDirection.ltr,
+            textScaler: _textScaler,
+          )..layout(maxWidth: width);
+          return LineLayout(painter, indent);
+        });
+        entry = _LineEntry(key, an.lines[i], info.kind, info.blockType, header, active, indent, lay);
+      }
+      entries.add(entry);
       tops.add(y);
-      layouts.add(lay);
-      y += lay.height;
+      layouts.add(entry.layout);
+      y += entry.layout.height;
     }
+    _lineEntries = entries;
+    _lineEnv = env;
     _cache.endPass();
     _visible = visible;
     _layouts = layouts;

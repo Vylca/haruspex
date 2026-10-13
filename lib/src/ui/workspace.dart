@@ -88,6 +88,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     settings.removeListener(_onSettings);
     _lifecycle.dispose();
     _messageTimer?.cancel();
+    _wordTimer?.cancel();
     for (final d in docs) {
       d.dispose();
     }
@@ -1555,11 +1556,27 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   OrgAnalysis? _wordsFor;
   int _wordCount = 0;
 
+  Timer? _wordTimer;
+
+  /// Word count for the mode line. Big documents are counted after typing
+  /// pauses instead of on every key.
   int _words(OrgAnalysis a) {
-    if (!identical(_wordsFor, a)) {
+    if (identical(_wordsFor, a)) return _wordCount;
+    if (a.text.length < 200000 || _wordsFor == null) {
       _wordsFor = a;
       _wordCount = _wordRe.allMatches(a.text).length;
+      return _wordCount;
     }
+    _wordTimer?.cancel();
+    _wordTimer = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      final latest = doc?.controller.analysis;
+      if (latest == null) return;
+      setState(() {
+        _wordsFor = latest;
+        _wordCount = _wordRe.allMatches(latest.text).length;
+      });
+    });
     return _wordCount;
   }
 }

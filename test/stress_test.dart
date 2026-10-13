@@ -59,8 +59,9 @@ Future<OrgEditorState> openEditor(WidgetTester tester, String text) async {
 }
 
 Future<void> type(WidgetTester tester, OrgEditorState state, String chars) async {
+  // Like the input method: it only sees the caret's line.
   for (final ch in chars.split('')) {
-    final v = state.doc.controller.value;
+    final v = state.currentTextEditingValue!;
     final at = v.selection.extentOffset;
     final text = v.text.replaceRange(at, at, ch);
     state.updateEditingValue(TextEditingValue(text: text, selection: TextSelection.collapsed(offset: at + 1)));
@@ -183,7 +184,7 @@ void main() {
     }
     await tester.pumpAndSettle();
     report('open 40 scratch buffers', sw, 40);
-    expect(find.byType(OrgEditor), findsNWidgets(41));
+    expect(find.byType(OrgEditor, skipOffstage: false), findsNWidgets(41));
     expect(state.mounted, isTrue);
     expect(tester.takeException(), isNull);
   });

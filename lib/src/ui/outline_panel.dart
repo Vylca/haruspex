@@ -41,19 +41,23 @@ class OutlinePanel extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(top: 2, bottom: 24),
-                children: [
-                  if (a.headingLines.isEmpty)
-                    Padding(
+              child: a.headingLines.isEmpty
+                  ? Padding(
                       padding: const EdgeInsets.all(8),
                       child: Text('No headings', style: TextStyle(color: t.faint)),
+                    )
+                  : ListView.builder(
+                      // Built lazily: big documents have thousands of headings.
+                      padding: const EdgeInsets.only(top: 2, bottom: 24),
+                      itemExtent: 20,
+                      itemCount: a.headingLines.length,
+                      itemBuilder: (context, k) {
+                        final h = a.headingLines[k];
+                        final info = a.headingInfo(h)!;
+                        return _row(info.level, info.keyword, plainTitle(info.title(a.lines[h])), h, h == current,
+                            a.todo.isDone(info.keyword));
+                      },
                     ),
-                  for (final h in a.headingLines)
-                    _row(a.headingInfo(h)!.level, a.headingInfo(h)!.keyword, plainTitle(a.headingInfo(h)!.title(a.lines[h])),
-                        h, h == current, a.todo.isDone(a.headingInfo(h)!.keyword)),
-                ],
-              ),
             ),
           ]),
         );

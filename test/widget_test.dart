@@ -136,7 +136,7 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
-    final editors = tester.stateList<OrgEditorState>(find.byType(OrgEditor)).toList();
+    final editors = tester.stateList<OrgEditorState>(find.byType(OrgEditor, skipOffstage: false)).toList();
     expect(editors.length, 2);
     final scratch = editors.last;
     expect(scratch.doc.scratch, isTrue);

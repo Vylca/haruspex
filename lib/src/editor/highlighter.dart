@@ -78,6 +78,9 @@ class OrgHighlighter {
     return '${'*' * (level - 1)}$bullet ';
   }
 
+  /// Whether table line [i] is a header row (followed by a rule).
+  bool isHeaderRow(OrgAnalysis a, int i) => _headerRow(a, i);
+
   bool _headerRow(OrgAnalysis a, int i) {
     final k = a.infos[i].kind;
     if (k != LineKind.table) return false;
