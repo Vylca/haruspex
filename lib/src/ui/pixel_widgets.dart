@@ -63,6 +63,58 @@ class _HoverBoxState extends State<HoverBox> {
   }
 }
 
+/// An entry of a right-click menu (showMenu). Under the mouse or the
+/// keyboard focus it turns orange with black text, like the menu bar.
+class PixelMenuItem<T> extends PopupMenuEntry<T> {
+  const PixelMenuItem({super.key, this.value, required this.child, this.enabled = true});
+
+  final T? value;
+  final Widget child;
+  final bool enabled;
+
+  @override
+  double get height => 24;
+
+  @override
+  bool represents(T? value) => value == this.value;
+
+  @override
+  State<PixelMenuItem<T>> createState() => _PixelMenuItemState<T>();
+}
+
+class _PixelMenuItemState<T> extends State<PixelMenuItem<T>> {
+  bool _hover = false;
+  bool _focus = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final on = widget.enabled;
+    final hot = on && (_hover || _focus);
+    return InkWell(
+      onTap: on ? () => Navigator.of(context).pop<T>(widget.value) : null,
+      onHover: (h) => setState(() => _hover = h),
+      onFocusChange: (f) => setState(() => _focus = f),
+      canRequestFocus: on,
+      mouseCursor: on ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      hoverColor: Colors.transparent,
+      focusColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      splashFactory: NoSplash.splashFactory,
+      child: Container(
+        height: widget.height,
+        color: hot ? scheme.primary : Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.centerLeft,
+        child: DefaultTextStyle.merge(
+          style: TextStyle(color: !on ? scheme.onSurfaceVariant : (hot ? scheme.onPrimary : scheme.onSurface)),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
 /// The Haruspex logo, the alchemical symbol for earth, made by
 /// tool/build_icon.py (thin_rows).
 const List<String> logoRows = [

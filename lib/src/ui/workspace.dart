@@ -1351,9 +1351,9 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       context: context,
       position: RelativeRect.fromRect(global & const Size(1, 1), Offset.zero & overlay.size),
       items: const [
-        PopupMenuItem(height: 24, value: 'rename', child: Text('Rename…')),
-        PopupMenuItem(height: 24, value: 'close', child: Text('Close')),
-        PopupMenuItem(height: 24, value: 'others', child: Text('Close other tabs')),
+        PixelMenuItem(value: 'rename', child: Text('Rename…')),
+        PixelMenuItem(value: 'close', child: Text('Close')),
+        PixelMenuItem(value: 'others', child: Text('Close other tabs')),
       ],
     );
     final at = docs.indexOf(d);
@@ -1523,8 +1523,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     if (overlay is! RenderBox) return;
     final svc = SpellService.instance;
     final current = d.spellLanguage;
-    PopupMenuItem<String> entry(String value, String label, bool on) => PopupMenuItem(
-          height: 24,
+    PixelMenuItem<String> entry(String value, String label, bool on) => PixelMenuItem(
           value: value,
           child: Text('${on ? '● ' : '  '}$label'),
         );

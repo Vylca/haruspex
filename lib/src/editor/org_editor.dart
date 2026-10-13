@@ -16,6 +16,7 @@ import '../org/spell_scan.dart';
 import '../org/table.dart';
 import '../org/timestamp.dart';
 import '../ui/dialogs.dart';
+import '../ui/pixel_widgets.dart';
 import 'line_layout.dart';
 import 'org_controller.dart';
 import 'org_theme.dart';
@@ -2024,21 +2025,17 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       items: [
         if (typo != null) ...[
           for (final f in fixes)
-            PopupMenuItem(
-              height: 24,
-              value: 'fix:$f',
-              child: Text(f, style: TextStyle(color: _theme.bright, fontWeight: FontWeight.w700)),
-            ),
-          if (fixes.isEmpty) const PopupMenuItem(height: 24, enabled: false, child: Text('No suggestions')),
-          PopupMenuItem(height: 24, value: 'learn', child: Text('Add "${typo.$2}" to dictionary')),
-          const PopupMenuItem(height: 24, value: 'ignore', child: Text('Ignore')),
+            PixelMenuItem(value: 'fix:$f', child: Text(f, style: const TextStyle(fontWeight: FontWeight.w700))),
+          if (fixes.isEmpty) const PixelMenuItem(enabled: false, child: Text('No suggestions')),
+          PixelMenuItem(value: 'learn', child: Text('Add "${typo.$2}" to dictionary')),
+          const PixelMenuItem(value: 'ignore', child: Text('Ignore')),
           const PopupMenuDivider(height: 1),
         ],
-        if (link != null) const PopupMenuItem(height: 24, value: 'open', child: Text('Open link')),
-        PopupMenuItem(height: 24, value: 'cut', enabled: hasSel, child: const Text('Cut')),
-        PopupMenuItem(height: 24, value: 'copy', enabled: hasSel, child: const Text('Copy')),
-        const PopupMenuItem(height: 24, value: 'paste', child: Text('Paste')),
-        const PopupMenuItem(height: 24, value: 'all', child: Text('Select all')),
+        if (link != null) const PixelMenuItem(value: 'open', child: Text('Open link')),
+        PixelMenuItem(value: 'cut', enabled: hasSel, child: const Text('Cut')),
+        PixelMenuItem(value: 'copy', enabled: hasSel, child: const Text('Copy')),
+        const PixelMenuItem(value: 'paste', child: Text('Paste')),
+        const PixelMenuItem(value: 'all', child: Text('Select all')),
       ],
     );
     if (!mounted) return;

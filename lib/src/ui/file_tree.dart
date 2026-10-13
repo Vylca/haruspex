@@ -130,17 +130,17 @@ class FileTreePanel extends StatelessWidget {
       context: context,
       position: RelativeRect.fromRect(global & const Size(1, 1), Offset.zero & overlay.size),
       items: [
-        const PopupMenuItem(height: 24, value: TreeAction.newNote, child: Text('New note')),
-        const PopupMenuItem(height: 24, value: TreeAction.newFolder, child: Text('New folder')),
+        const PixelMenuItem(value: TreeAction.newNote, child: Text('New note')),
+        const PixelMenuItem(value: TreeAction.newFolder, child: Text('New folder')),
         if (isRoot) ...[
           const PopupMenuDivider(),
-          const PopupMenuItem(height: 24, value: TreeAction.collapse, child: Text('Collapse all')),
-          const PopupMenuItem(height: 24, value: TreeAction.refresh, child: Text('Refresh')),
+          const PixelMenuItem(value: TreeAction.collapse, child: Text('Collapse all')),
+          const PixelMenuItem(value: TreeAction.refresh, child: Text('Refresh')),
         ],
         if (!isRoot) ...[
           const PopupMenuDivider(),
-          const PopupMenuItem(height: 24, value: TreeAction.rename, child: Text('Rename…')),
-          const PopupMenuItem(height: 24, value: TreeAction.delete, child: Text('Move to trash')),
+          const PixelMenuItem(value: TreeAction.rename, child: Text('Rename…')),
+          const PixelMenuItem(value: TreeAction.delete, child: Text('Move to trash')),
         ],
       ],
     );
