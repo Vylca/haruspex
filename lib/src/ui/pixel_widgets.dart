@@ -106,7 +106,8 @@ class EarthLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      size: Size(width, width * math.sqrt(3) / 2),
+      // Whole pixels, so the logo is not placed between two pixel rows.
+      size: Size(width.roundToDouble(), (width * math.sqrt(3) / 2).roundToDouble()),
       painter: _EarthPainter(color, stroke ?? width * 11 / 140),
     );
   }
