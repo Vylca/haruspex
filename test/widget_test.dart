@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:haruspex/main.dart';
 import 'package:haruspex/src/app/settings.dart';
@@ -153,5 +154,13 @@ void main() {
     expect(find.byType(OrgEditor), findsOneWidget);
     expect(find.text('Unsaved changes'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a short document still fills the editor area', (tester) async {
+    await startEditor(tester, 'one line');
+    final size = tester.getSize(find.byType(OrgEditor));
+    final scroll = tester.getRect(find.descendant(of: find.byType(OrgEditor), matching: find.byType(SingleChildScrollView)));
+    expect(size.height, greaterThan(500));
+    expect(scroll.height, size.height);
   });
 }
