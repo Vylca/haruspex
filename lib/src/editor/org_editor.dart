@@ -68,34 +68,18 @@ class _CaretGeometry {
   final double lineBottom;
 }
 
-/// Builds the line items and reports the exact total height, so jumping
-/// far down the document scrolls to the right place.
-class _LinesDelegate extends SliverChildBuilderDelegate {
-  _LinesDelegate(super.builder, {required int super.childCount, required this.total});
-
-  final double total;
-
-  @override
-  double? estimateMaxScrollOffset(
-    int firstIndex,
-    int lastIndex,
-    double leadingScrollOffset,
-    double trailingScrollOffset,
-  ) =>
-      total;
-}
-
-class _LinePainter extends CustomPainter {
-  _LinePainter(this.s, this.index) : super(repaint: s._caretIndex == index ? s._caretOn : null);
+/// Paints the lines on screen. The whole document is one tall canvas;
+/// only the lines inside the viewport are drawn, found by binary search.
+class _DocPainter extends CustomPainter {
+  _DocPainter(this.s) : super(repaint: s._caretOn);
 
   final OrgEditorState s;
-  final int index;
 
   @override
-  void paint(Canvas canvas, Size size) => s._paintLine(canvas, index, size);
+  void paint(Canvas canvas, Size size) => s._paintVisible(canvas, size);
 
   @override
-  bool shouldRepaint(covariant _LinePainter old) => true;
+  bool shouldRepaint(covariant _DocPainter old) => true;
 }
 
 class OrgEditorState extends State<OrgEditor> with TextInputClient {
@@ -630,6 +614,32 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
   // -------------------------------------------------------------------------
   // Painting
   // -------------------------------------------------------------------------
+
+  double _viewportHeight = 600;
+
+  /// Paints the lines that intersect the viewport.
+  void _paintVisible(Canvas canvas, Size size) {
+    if (_layouts.isEmpty) return;
+    final scroll = doc.scroll.hasClients ? doc.scroll.offset : 0.0;
+    final top = scroll - _vpad - 4;
+    final bottom = scroll - _vpad + _viewportHeight + 4;
+    // First line whose bottom is below the top of the viewport.
+    var lo = 0, hi = _tops.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (_tops[mid] + _layouts[mid].height <= top) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    for (var k = lo; k < _layouts.length && _tops[k] < bottom; k++) {
+      canvas.save();
+      canvas.translate(0, _tops[k]);
+      _paintLine(canvas, k, Size(size.width, _layouts[k].height));
+      canvas.restore();
+    }
+  }
 
   void _paintLine(Canvas canvas, int k, Size size) {
     if (k >= _layouts.length || k >= _visible.length) return;
@@ -1980,8 +1990,8 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
           _textWidth = math.max<double>(60.0, math.min<double>(s.maxWidth, w - left - 20)).floorToDouble();
         }
         _rpad = math.max<double>(0.0, w - _hpad - _textWidth);
+        _viewportHeight = constraints.maxHeight;
         _relayout();
-        final count = _layouts.length;
         return ColoredBox(
           color: _theme.background,
           child: Listener(
@@ -1991,15 +2001,10 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
             onPointerUp: _onPointerUp,
             child: MouseRegion(
               cursor: SystemMouseCursors.text,
-              child: ListView.custom(
+              child: SingleChildScrollView(
                 controller: doc.scroll,
                 padding: EdgeInsets.fromLTRB(_hpad, _vpad, _rpad, math.max<double>(_vpad, constraints.maxHeight / 3).roundToDouble()),
-                itemExtentBuilder: (index, dimensions) => index < _layouts.length ? _layouts[index].height : null,
-                childrenDelegate: _LinesDelegate(
-                  (context, index) => index < _layouts.length ? CustomPaint(painter: _LinePainter(this, index)) : null,
-                  childCount: count,
-                  total: _totalHeight,
-                ),
+                child: CustomPaint(size: Size(_textWidth, _totalHeight), painter: _DocPainter(this)),
               ),
             ),
           ),
