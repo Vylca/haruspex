@@ -40,10 +40,20 @@ class OrgController extends TextEditingController {
   OrgAnalysis _analysisFor(String t) {
     final a = _analysis;
     if (a != null && (identical(a.text, t) || a.text == t)) return a;
-    final n = OrgAnalysis(t);
+    final OrgAnalysis n;
+    if (a == null) {
+      n = OrgAnalysis(t);
+    } else {
+      final d = _diff;
+      n = OrgAnalysis.update(a, t, d != null && identical(d.$1, a) && identical(d.$2, t) ? d.$3 : null);
+    }
+    _diff = null;
     _analysis = n;
     return n;
   }
+
+  /// The line diff of the last edit, kept for the next analysis.
+  (OrgAnalysis, String, LineDiff)? _diff;
 
   // -------------------------------------------------------------------------
   // Value changes: keep folds attached to their lines, keep the caret visible.
@@ -88,21 +98,34 @@ class OrgController extends TextEditingController {
       return;
     }
     final a = _analysis;
-    final oldLines = (a != null && (identical(a.text, oldText) || a.text == oldText)) ? a.lines : oldText.split('\n');
-    final newLines = newText.split('\n');
-    final minN = oldLines.length < newLines.length ? oldLines.length : newLines.length;
-    var pre = 0;
-    while (pre < minN && oldLines[pre] == newLines[pre]) {
-      pre++;
+    final int pre, oldMidEnd, oldMid, newMid, delta;
+    if (a != null && (identical(a.text, oldText) || a.text == oldText)) {
+      // Same diff the next analysis needs; computed once.
+      final d = LineDiff.between(a, newText);
+      _diff = (a, newText, d);
+      pre = d.start;
+      oldMidEnd = d.oldEnd;
+      oldMid = d.oldEnd - d.start;
+      newMid = d.newLines.length;
+      delta = d.newEnd - d.oldEnd;
+    } else {
+      final oldLines = oldText.split('\n');
+      final newLines = newText.split('\n');
+      final minN = oldLines.length < newLines.length ? oldLines.length : newLines.length;
+      var p = 0;
+      while (p < minN && oldLines[p] == newLines[p]) {
+        p++;
+      }
+      var suf = 0;
+      while (suf < minN - p && oldLines[oldLines.length - 1 - suf] == newLines[newLines.length - 1 - suf]) {
+        suf++;
+      }
+      pre = p;
+      oldMidEnd = oldLines.length - suf;
+      oldMid = oldMidEnd - pre;
+      newMid = newLines.length - suf - pre;
+      delta = newLines.length - oldLines.length;
     }
-    var suf = 0;
-    while (suf < minN - pre && oldLines[oldLines.length - 1 - suf] == newLines[newLines.length - 1 - suf]) {
-      suf++;
-    }
-    final oldMidEnd = oldLines.length - suf;
-    final oldMid = oldMidEnd - pre;
-    final newMid = newLines.length - suf - pre;
-    final delta = newLines.length - oldLines.length;
 
     int? shift(int f) {
       if (f < pre) return f;

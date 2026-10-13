@@ -157,6 +157,81 @@ class OrgAnalysis {
         regionEnd, priorities);
   }
 
+  /// Analysis of [text], reusing [prev] (the analysis of an earlier version)
+  /// for the lines an edit did not touch. Falls back to a full parse when the
+  /// edit could change lines elsewhere: headings, #+ lines (keywords and
+  /// blocks) and drawer lines in the changed region.
+  static OrgAnalysis update(OrgAnalysis prev, String text, [LineDiff? known]) {
+    if (prev.lineCount < 2000 || text.isEmpty) return OrgAnalysis(text);
+    final d = known ?? LineDiff.between(prev, text);
+    final mid = d.newLines;
+    bool risky(String l) {
+      if (l.startsWith('*') && HeadingInfo.isHeading(l)) return true;
+      final t = l.trimLeft();
+      if (t.startsWith('#+')) return true;
+      return t.startsWith(':') && (drawerBeginRe.hasMatch(l) || drawerEndRe.hasMatch(l));
+    }
+
+    for (var k = d.start; k < d.oldEnd; k++) {
+      if (risky(prev.lines[k])) return OrgAnalysis(text);
+    }
+    for (final l in mid) {
+      if (risky(l)) return OrgAnalysis(text);
+    }
+
+    // The changed lines are either all outside blocks and drawers or all
+    // inside the same one.
+    bool inside(LineKind k) =>
+        k == LineKind.blockContent || k == LineKind.drawerContent || k == LineKind.property;
+    final firstKind = prev.infos[d.start].kind;
+    final isInside = inside(firstKind);
+    for (var k = d.start; k < d.oldEnd; k++) {
+      if (inside(prev.infos[k].kind) != isInside) return OrgAnalysis(text);
+    }
+    String? blockType;
+    var props = false;
+    if (isInside) {
+      if (firstKind == LineKind.blockContent) {
+        blockType = prev.infos[d.start].blockType;
+      } else {
+        var b = d.start;
+        while (b > 0 && inside(prev.infos[b].kind)) {
+          b--;
+        }
+        if (prev.infos[b].kind != LineKind.drawerBegin) return OrgAnalysis(text);
+        props = prev.lines[b].trim().toUpperCase() == ':PROPERTIES:';
+      }
+    }
+
+    final midInfos = <LineInfo>[
+      for (final l in mid)
+        if (isInside)
+          blockType != null
+              ? LineInfo(LineKind.blockContent, blockType: blockType)
+              : LineInfo(props && propertyRe.hasMatch(l) ? LineKind.property : LineKind.drawerContent)
+        else if (l.isEmpty || blankRe.hasMatch(l))
+          LineInfo.blank
+        else
+          LineInfo(_classify(l)),
+    ];
+    final delta = mid.length - (d.oldEnd - d.start);
+    final lines = [...prev.lines.sublist(0, d.start), ...mid, ...prev.lines.sublist(d.oldEnd)];
+    final infos = [...prev.infos.sublist(0, d.start), ...midInfos, ...prev.infos.sublist(d.oldEnd)];
+    final starts = List<int>.filled(lines.length, 0);
+    var o = 0;
+    for (var i = 0; i < lines.length; i++) {
+      starts[i] = o;
+      o += lines[i].length + 1;
+    }
+    final headings = [for (final h in prev.headingLines) h >= d.oldEnd ? h + delta : h];
+    final regions = <int, int>{
+      for (final e in prev.regionEnd.entries)
+        if (e.key >= d.oldEnd) e.key + delta: e.value + delta else e.key: e.value >= d.start ? e.value + delta : e.value,
+    };
+    return OrgAnalysis._(text, lines, starts, infos, prev.todo, prev.keywords, prev.startup, headings, regions,
+        prev.priorities);
+  }
+
   static LineKind _classify(String l) {
     if (planningRe.hasMatch(l)) return LineKind.planning;
     final t = l.trimLeft();
@@ -334,5 +409,36 @@ class PriorityConfig {
     final a = highest.codeUnitAt(0), b = lowest.codeUnitAt(0);
     final step = a <= b ? 1 : -1;
     return [for (var c = a; c != b + step; c += step) String.fromCharCode(c)];
+  }
+}
+
+/// The lines an edit changed: lines [start, oldEnd) of the old text became
+/// [newLines]. Found from the common start and end of the two texts.
+class LineDiff {
+  LineDiff(this.start, this.oldEnd, this.newLines);
+
+  final int start;
+  final int oldEnd;
+  final List<String> newLines;
+
+  int get newEnd => start + newLines.length;
+
+  static LineDiff between(OrgAnalysis old, String text) {
+    final a = old.text;
+    final n = a.length < text.length ? a.length : text.length;
+    var pre = 0;
+    while (pre < n && a.codeUnitAt(pre) == text.codeUnitAt(pre)) {
+      pre++;
+    }
+    var suf = 0;
+    while (suf < n - pre && a.codeUnitAt(a.length - 1 - suf) == text.codeUnitAt(text.length - 1 - suf)) {
+      suf++;
+    }
+    final start = old.lineOfOffset(pre);
+    final last = old.lineOfOffset(a.length - suf);
+    final oldLineEnd = old.lineEnd(last);
+    final newLineEnd = oldLineEnd + text.length - a.length;
+    final mid = text.substring(old.lineStarts[start], newLineEnd).split('\n');
+    return LineDiff(start, last + 1, mid);
   }
 }

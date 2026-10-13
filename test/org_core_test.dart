@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:haruspex/src/app/vault.dart';
@@ -167,6 +168,60 @@ void main() {
         expect(await renameEntry(c, 'notes.txt'), '${dir.path}/notes.txt');
       } finally {
         await dir.delete(recursive: true);
+      }
+    });
+  });
+
+  group('incremental analysis', () {
+    String doc() {
+      final b = StringBuffer('#+TITLE: T\n#+TODO: TODO NEXT | DONE\n');
+      for (var i = 0; i < 400; i++) {
+        b.writeln('* TODO Heading $i  :t:');
+        b.writeln(':PROPERTIES:');
+        b.writeln(':ID: $i');
+        b.writeln(':END:');
+        b.writeln('Body text $i with *bold*.');
+        b.writeln('#+BEGIN_SRC dart');
+        b.writeln('code $i');
+        b.writeln('#+END_SRC');
+        b.writeln('- item');
+        b.writeln('| a | b |');
+        b.writeln('');
+      }
+      return b.toString();
+    }
+
+    void same(OrgAnalysis inc, OrgAnalysis full, String what) {
+      expect(inc.lines, full.lines, reason: '$what: lines');
+      expect(inc.lineStarts, full.lineStarts, reason: '$what: starts');
+      expect([for (final i in inc.infos) '${i.kind}|${i.blockType}|${i.heading?.level}'],
+          [for (final i in full.infos) '${i.kind}|${i.blockType}|${i.heading?.level}'],
+          reason: '$what: kinds');
+      expect(inc.headingLines, full.headingLines, reason: '$what: headings');
+      expect(inc.regionEnd, full.regionEnd, reason: '$what: regions');
+      expect(inc.keywords, full.keywords, reason: '$what: keywords');
+    }
+
+    test('matches a full parse after random edits', () {
+      final rnd = Random(7);
+      const pieces = ['x', ' ', '\n', '\n\n', '*', '* New', '#+', '#+END_SRC', ':END:', ':FOO:', '|', '- ', 'abc\ndef'];
+      var a = OrgAnalysis(doc());
+      expect(a.lineCount, greaterThan(2000));
+      for (var n = 0; n < 400; n++) {
+        final t = a.text;
+        final at = rnd.nextInt(t.length);
+        String next;
+        switch (rnd.nextInt(3)) {
+          case 0:
+            next = t.replaceRange(at, at, pieces[rnd.nextInt(pieces.length)]);
+          case 1:
+            next = t.replaceRange(at, (at + 1 + rnd.nextInt(30)).clamp(0, t.length), '');
+          default:
+            next = t.replaceRange(at, (at + rnd.nextInt(5)).clamp(0, t.length), pieces[rnd.nextInt(pieces.length)]);
+        }
+        final inc = OrgAnalysis.update(a, next);
+        same(inc, OrgAnalysis(next), 'edit $n at $at');
+        a = inc;
       }
     });
   });
