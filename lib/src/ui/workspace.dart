@@ -883,7 +883,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           TitleBar(
             theme: t,
             menu: _menuBar(context, t),
-            title: d == null ? 'Haruspex' : '${d.dirty ? '● ' : ''}${d.name} · Haruspex',
+            title: d == null ? 'Haruspex' : '${d.dirty && !d.scratch ? '● ' : ''}${d.name} · Haruspex',
             onClose: quit,
           ),
           if (docs.isNotEmpty) _tabBar(context, t),
@@ -1038,11 +1038,11 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: SizedBox(
-          width: 432,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(text, style: base.copyWith(color: t.levels[1], fontStyle: FontStyle.italic)),
+          width: 520,
+          child: Column(children: [
+            Text(text, textAlign: TextAlign.center, style: base.copyWith(color: t.levels[1], fontStyle: FontStyle.italic)),
             const SizedBox(height: 4),
-            Text('Aleister Crowley, Liber AL $verse', style: base.copyWith(color: t.faint)),
+            Text('Aleister Crowley, Liber AL $verse', textAlign: TextAlign.center, style: base.copyWith(color: t.faint)),
           ]),
         ),
       ),
@@ -1337,9 +1337,9 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       context: context,
       position: RelativeRect.fromRect(global & const Size(1, 1), Offset.zero & overlay.size),
       items: const [
-        PopupMenuItem(value: 'rename', child: Text('Rename…')),
-        PopupMenuItem(value: 'close', child: Text('Close')),
-        PopupMenuItem(value: 'others', child: Text('Close other tabs')),
+        PopupMenuItem(height: 24, value: 'rename', child: Text('Rename…')),
+        PopupMenuItem(height: 24, value: 'close', child: Text('Close')),
+        PopupMenuItem(height: 24, value: 'others', child: Text('Close other tabs')),
       ],
     );
     final at = docs.indexOf(d);
@@ -1423,7 +1423,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
         if (d == null)
           Expanded(child: Text(v == null ? '*dashboard*' : '*dashboard*  ${v.name}', style: style))
         else ...[
-          Text(d.dirty ? '●' : '○', style: TextStyle(color: d.dirty ? t.accent : t.faint)),
+          Text(d.dirty && !d.scratch ? '●' : '○', style: TextStyle(color: d.dirty && !d.scratch ? t.accent : t.faint)),
           const SizedBox(width: 8),
           Flexible(
             child: Tooltip(

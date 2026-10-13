@@ -127,6 +127,8 @@ ThemeData buildHevTheme(OrgTheme t) {
   final squareBorder = OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: t.border));
   final input = InputDecorationThemeData(
     isDense: true,
+    // A floating label shrinks below the pixel font's size; keep it inside.
+    floatingLabelBehavior: FloatingLabelBehavior.never,
     filled: true,
     fillColor: t.background,
     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),

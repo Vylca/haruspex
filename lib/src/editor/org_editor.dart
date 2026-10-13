@@ -1924,11 +1924,11 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       context: context,
       position: RelativeRect.fromRect(global & const Size(1, 1), Offset.zero & overlay.size),
       items: [
-        if (link != null) const PopupMenuItem(value: 'open', child: Text('Open link')),
-        PopupMenuItem(value: 'cut', enabled: hasSel, child: const Text('Cut')),
-        PopupMenuItem(value: 'copy', enabled: hasSel, child: const Text('Copy')),
-        const PopupMenuItem(value: 'paste', child: Text('Paste')),
-        const PopupMenuItem(value: 'all', child: Text('Select all')),
+        if (link != null) const PopupMenuItem(height: 24, value: 'open', child: Text('Open link')),
+        PopupMenuItem(height: 24, value: 'cut', enabled: hasSel, child: const Text('Cut')),
+        PopupMenuItem(height: 24, value: 'copy', enabled: hasSel, child: const Text('Copy')),
+        const PopupMenuItem(height: 24, value: 'paste', child: Text('Paste')),
+        const PopupMenuItem(height: 24, value: 'all', child: Text('Select all')),
       ],
     );
     if (!mounted) return;
