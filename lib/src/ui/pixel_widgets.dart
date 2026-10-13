@@ -142,7 +142,10 @@ class _EarthPainter extends CustomPainter {
     final half = side / 2 * (1 - _barAt) + _overhang * side;
     final paint = Paint()..color = color;
     canvas.drawPath(outline, paint);
-    canvas.drawRect(Rect.fromLTRB(cx - half, barY - d, cx + half, barY + d), paint);
+    // The bar on whole pixel rows, so it stays crisp at small sizes.
+    final top = (barY - d).roundToDouble();
+    final bottom = math.max<double>(top + 1, (barY + d).roundToDouble());
+    canvas.drawRect(Rect.fromLTRB(cx - half, top, cx + half, bottom), paint);
   }
 
   @override
