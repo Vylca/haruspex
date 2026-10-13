@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:haruspex/src/app/spelling.dart';
 import 'package:haruspex/src/org/analysis.dart';
@@ -137,7 +135,7 @@ void main() {
       final typo = state.misspelledAt(o + 1);
       expect(typo?.$2, 'trés');
       expect(state.misspelledAt(state.doc.controller.text.indexOf('élève')), isNull);
-      expect(svc.checker('fr_FR')!.suggest('trés'), contains('très'));
+      expect(svc.checker('fr_FR')!.suggest('trés').first, 'très');
     }, skip: !built);
   });
 }

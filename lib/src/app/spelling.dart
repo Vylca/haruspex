@@ -62,7 +62,33 @@ class SpellChecker {
     return _known[word] = _h.spell(word);
   }
 
-  List<String> suggest(String word) => _h.suggest(word);
+  /// Letters that differ only by an accent.
+  static const _accentGroups = [
+    'aàâäáãå', 'eéèêë', 'iîïíì', 'oôöóòõ', 'uùûüú', 'cç', 'yÿý', 'nñ', //
+    'AÀÂÄÁÃÅ', 'EÉÈÊË', 'IÎÏÍÌ', 'OÔÖÓÒÕ', 'UÙÛÜÚ', 'CÇ', 'YŸÝ', 'NÑ',
+  ];
+
+  /// Corrections for [word], best first. A wrong accent is the most common
+  /// slip (trés for très), and Hunspell sometimes misses it when the
+  /// dictionary has a replacement rule that also fits, so those come first.
+  List<String> suggest(String word) {
+    final out = <String>[];
+    for (var i = 0; i < word.length; i++) {
+      final ch = word[i];
+      for (final g in _accentGroups) {
+        if (!g.contains(ch)) continue;
+        for (final alt in g.split('')) {
+          if (alt == ch) continue;
+          final candidate = word.replaceRange(i, i + 1, alt);
+          if (!out.contains(candidate) && check(candidate)) out.add(candidate);
+        }
+      }
+    }
+    for (final s in _h.suggest(word)) {
+      if (!out.contains(s)) out.add(s);
+    }
+    return out;
+  }
 
   void _add(String word) {
     _h.add(word);
