@@ -2,7 +2,9 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:haruspex/src/app/document.dart';
 import 'package:haruspex/src/app/vault.dart';
+import 'package:haruspex/src/editor/highlighter.dart';
 import 'package:haruspex/src/org/agenda.dart';
 import 'package:haruspex/src/org/analysis.dart';
 import 'package:haruspex/src/org/edits.dart';
@@ -222,6 +224,46 @@ void main() {
         final inc = OrgAnalysis.update(a, next);
         same(inc, OrgAnalysis(next), 'edit $n at $at');
         a = inc;
+      }
+    });
+  });
+
+  group('documents on disk', () {
+    test('Latin-1 files, byte order marks and CRLF survive a save', () async {
+      final dir = await Directory.systemTemp.createTemp('haruspex_doc');
+      try {
+        final latin = File('${dir.path}/latin.org')..writeAsBytesSync([0x2A, 0x20, 0x43, 0x61, 0x66, 0xE9, 0x0D, 0x0A]);
+        final d1 = await OrgDocument.load(latin.path, OrgHighlighter());
+        expect(d1.controller.text, '* Caf\u00e9\n');
+        expect(d1.encodingName, 'LATIN-1');
+        await d1.saveTo(latin.path);
+        expect(latin.readAsBytesSync(), [0x2A, 0x20, 0x43, 0x61, 0x66, 0xE9, 0x0D, 0x0A]);
+
+        final bomFile = File('${dir.path}/bom.org')..writeAsBytesSync([0xEF, 0xBB, 0xBF, 0x61, 0x0A]);
+        final d2 = await OrgDocument.load(bomFile.path, OrgHighlighter());
+        expect(d2.controller.text, 'a\n');
+        await d2.saveTo(bomFile.path);
+        expect(bomFile.readAsBytesSync(), [0xEF, 0xBB, 0xBF, 0x61, 0x0A]);
+        d1.dispose();
+        d2.dispose();
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+
+    test('notices changes made by another program', () async {
+      final dir = await Directory.systemTemp.createTemp('haruspex_doc');
+      try {
+        final f = File('${dir.path}/a.org')..writeAsStringSync('one\n');
+        final d = await OrgDocument.load(f.path, OrgHighlighter());
+        expect(await d.changedOnDisk(), isFalse);
+        f.writeAsStringSync('changed elsewhere\n');
+        expect(await d.changedOnDisk(), isTrue);
+        await d.saveTo(f.path);
+        expect(await d.changedOnDisk(), isFalse);
+        d.dispose();
+      } finally {
+        await dir.delete(recursive: true);
       }
     });
   });

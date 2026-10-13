@@ -259,6 +259,17 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final d = target ?? doc;
     if (d == null) return false;
     if (d.path == null) return saveAs(d);
+    if (await d.changedOnDisk()) {
+      if (!mounted) return false;
+      final ok = await showConfirm(
+        context,
+        title: 'Changed on disk',
+        message: '"${d.name}" was changed by another program since it was opened here. '
+            'Overwrite it with this version?',
+        ok: 'Overwrite',
+      );
+      if (!ok) return false;
+    }
     try {
       await d.saveTo(d.path!);
       showMessage('Wrote ${d.path}');
@@ -1457,7 +1468,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           const SizedBox(width: 16),
           Text(d.usesCrlf ? 'CRLF' : 'LF', style: faint),
           const SizedBox(width: 8),
-          Text('UTF-8', style: faint),
+          Text(d.encodingName, style: faint),
           const SizedBox(width: 16),
           if (d.scratch) ...[Text('scratch', style: TextStyle(color: t.tag)), const SizedBox(width: 10)],
           Text('Org', style: TextStyle(color: t.accent, fontWeight: FontWeight.w700)),
