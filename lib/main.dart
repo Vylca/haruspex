@@ -11,8 +11,8 @@ import 'src/ui/workspace.dart';
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
-    final text = await rootBundle.loadString('assets/fonts/LICENSE-Spleen.txt');
-    yield LicenseEntryWithLineBreaks(const ['Spleen font'], text);
+    final text = await rootBundle.loadString('assets/fonts/NOTICE-PCDOS.txt');
+    yield LicenseEntryWithLineBreaks(const ['PC DOS font'], text);
   });
   await WindowChrome.init();
   final settings = AppSettings();

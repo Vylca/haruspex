@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// The pixel font bundled with the app (Spleen 8x16). It is crisp at 16 px
-/// and whole multiples of it.
-const String pixelFont = 'Spleen';
+/// The pixel font bundled with the app, the IBM PC DOS ISO 8x16 text mode
+/// font. It is crisp at 16 px and whole multiples of it.
+const String pixelFont = 'PC DOS';
+
+/// Pixel fonts bundled with earlier versions, replaced by [pixelFont].
+const List<String> oldPixelFonts = ['Spleen'];
 
 /// Size at which [pixelFont] lines up with the screen pixels.
 const double pixelSize = 16;

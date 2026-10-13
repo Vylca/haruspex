@@ -62,6 +62,10 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
+  /// A saved font, with the pixel font of earlier versions mapped to the
+  /// current one.
+  static String? _font(String? family) => oldPixelFonts.contains(family) ? pixelFont : family;
+
   Future<void> load() async {
     var f = _file();
     if (f == null) return;
@@ -74,8 +78,8 @@ class AppSettings extends ChangeNotifier {
       }
       final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
       if ((j['styleVersion'] as num? ?? 0) >= _styleVersion) {
-        fontFamily = j['fontFamily'] as String? ?? fontFamily;
-        codeFontFamily = j['codeFontFamily'] as String? ?? codeFontFamily;
+        fontFamily = _font(j['fontFamily'] as String?) ?? fontFamily;
+        codeFontFamily = _font(j['codeFontFamily'] as String?) ?? codeFontFamily;
         fontSize = (j['fontSize'] as num?)?.toDouble() ?? fontSize;
         lineHeight = (j['lineHeight'] as num?)?.toDouble() ?? lineHeight;
         scaleHeadings = j['scaleHeadings'] as bool? ?? scaleHeadings;

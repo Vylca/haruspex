@@ -1,0 +1,10 @@
+PC DOS (PCDOS-Regular.ttf, PCDOS-Bold.ttf)
+
+The bitmaps are the ISO 9241-3 text mode fonts (8x16) of IBM PC DOS 2000,
+code pages 437, 850, 852, 855, 857, 860, 861, 863, 866 and 869, as collected
+by VileR in the VGA text mode font collection:
+https://github.com/viler-int10h/vga-text-mode-fonts
+
+Haruspex converts every pixel to a square outline (tool/build_font.py), adds
+a bold variant and draws a few glyphs no code page has (typographic quotes and
+dashes, the euro sign, the OE ligature and the bullets used by the editor).

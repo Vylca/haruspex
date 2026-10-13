@@ -20,13 +20,13 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/fonts/LICENSE-Spleen.txt
+    - assets/fonts/NOTICE-PCDOS.txt
     - assets/icon/haruspex.png
   fonts:
-    # Spleen 8x16 by Frederic Cambus (BSD 2-Clause), converted to outlines by
-    # tool/build_font.py so it renders as crisp pixels at 16 px.
-    - family: Spleen
+    # The IBM PC DOS 2000 ISO 9241-3 text mode font (8x16), converted to
+    # outlines by tool/build_font.py so it renders as crisp pixels at 16 px.
+    - family: PC DOS
       fonts:
-        - asset: assets/fonts/Spleen-Regular.ttf
-        - asset: assets/fonts/Spleen-Bold.ttf
+        - asset: assets/fonts/PCDOS-Regular.ttf
+        - asset: assets/fonts/PCDOS-Bold.ttf
           weight: 700

@@ -74,8 +74,8 @@ tests and attaches `haruspex-linux-x64.tar.gz` to the run.
 - Look: black and orange, square and flat, after Doom Emacs. Line numbers,
   current line highlight, a mode line and echo area, a dashboard with one key
   shortcuts when nothing is open
-- Bundled pixel font (Spleen 8x16), sharpest at 16 and 32 px. Any installed
-  font can be picked in Settings
+- Bundled pixel font (IBM PC DOS ISO 8x16), sharpest at 16 and 32 px. Any
+  installed font can be picked in Settings
 
 Shortcuts are listed under Help > Keyboard shortcuts. `Ctrl+C` with no
 selection acts as Emacs's `C-c` prefix, so `C-c C-t` is Ctrl+C then T.
@@ -100,6 +100,7 @@ test/             unit and widget tests (flutter test)
 
 ## Credits
 
-The pixel font is [Spleen](https://github.com/fcambus/spleen) by Frederic
-Cambus (BSD 2-Clause, see `assets/fonts/LICENSE-Spleen.txt`), converted to
-outlines by `tool/build_font.py`.
+The pixel font is the IBM PC DOS 2000 ISO 9241-3 text mode font, taken from
+VileR's [VGA text mode font collection](https://github.com/viler-int10h/vga-text-mode-fonts)
+and converted to outlines by `tool/build_font.py` (see
+`assets/fonts/NOTICE-PCDOS.txt`).
