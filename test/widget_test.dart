@@ -128,4 +128,30 @@ void main() {
     expect(state.doc.scroll.offset, greaterThan(0));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Ctrl+B opens a scratch buffer that closes without asking', (tester) async {
+    await startEditor(tester, 'file text');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyB);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    final editors = tester.stateList<OrgEditorState>(find.byType(OrgEditor)).toList();
+    expect(editors.length, 2);
+    final scratch = editors.last;
+    expect(scratch.doc.scratch, isTrue);
+    expect(scratch.doc.name, '*scratch*');
+
+    scratch.updateEditingValue(const TextEditingValue(text: 'quick note', selection: TextSelection.collapsed(offset: 10)));
+    await tester.pump();
+    expect(scratch.doc.dirty, isTrue);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(find.byType(OrgEditor), findsOneWidget);
+    expect(find.text('Unsaved changes'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -1008,7 +1008,9 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       _restartBlink();
       return KeyEventResult.handled;
     }
-    if (!ctrl && !alt && !meta) return KeyEventResult.skipRemainingHandlers;
+    // Keys that type something go to the text input; function keys and
+    // the like can still reach the window's shortcuts.
+    if (!ctrl && !alt && !meta && e.character != null) return KeyEventResult.skipRemainingHandlers;
     return KeyEventResult.ignored;
   }
 

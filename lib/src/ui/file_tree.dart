@@ -65,7 +65,8 @@ class FileTreePanel extends StatelessWidget {
             Expanded(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onSecondaryTapDown: (d) => _menu(context, rootEntry, d.globalPosition, isRoot: true),
+                // On release, so a click on a row opens only the row's menu.
+                onSecondaryTapUp: (d) => _menu(context, rootEntry, d.globalPosition, isRoot: true),
                 child: rows.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(8),
@@ -98,7 +99,7 @@ class FileTreePanel extends StatelessWidget {
       theme: t,
       selected: active,
       onTap: () => e.isDir ? vault.toggle(e.path) : onOpen(e.path),
-      onSecondaryTapDown: (d) => _menu(context, e, d.globalPosition),
+      onSecondaryTapUp: (d) => _menu(context, e, d.globalPosition),
       builder: (hot) {
         final color = hot ? Colors.black : (active ? t.accent : (e.isDir ? t.levels[1] : t.text));
         return Padding(

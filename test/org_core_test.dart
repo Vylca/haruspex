@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:haruspex/src/app/vault.dart';
 import 'package:haruspex/src/org/agenda.dart';
 import 'package:haruspex/src/org/analysis.dart';
 import 'package:haruspex/src/org/edits.dart';
@@ -146,6 +149,25 @@ void main() {
       final today = days.first.items.map((i) => '${i.title}:${i.label}').toList();
       expect(today, containsAll(['A:Sched. 7x', 'B:In 3 d.']));
       expect(days[3].items.single.label, 'Deadline');
+    });
+  });
+
+  group('files', () {
+    test('rename keeps the extension and never replaces a file', () async {
+      final dir = await Directory.systemTemp.createTemp('haruspex');
+      try {
+        final a = File('${dir.path}/a.org')..writeAsStringSync('a');
+        File('${dir.path}/b.org').writeAsStringSync('b');
+        final c = await renameEntry(a.path, 'c');
+        expect(c, '${dir.path}/c.org');
+        expect(File(c).readAsStringSync(), 'a');
+        await expectLater(renameEntry(c, 'b'), throwsA(isA<FileSystemException>()));
+        await expectLater(renameEntry(c, 'x/y'), throwsA(isA<FileSystemException>()));
+        expect(File('${dir.path}/b.org').readAsStringSync(), 'b');
+        expect(await renameEntry(c, 'notes.txt'), '${dir.path}/notes.txt');
+      } finally {
+        await dir.delete(recursive: true);
+      }
     });
   });
 }

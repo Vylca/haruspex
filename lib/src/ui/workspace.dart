@@ -26,6 +26,7 @@ import 'hev_theme.dart';
 import 'outline_panel.dart';
 import 'pixel_widgets.dart';
 import 'quick_switcher.dart';
+import 'quotes.dart';
 import 'settings_dialog.dart';
 import 'title_bar.dart';
 import 'tutorial.dart';
@@ -168,6 +169,19 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     });
   }
 
+  /// Ctrl+B: a scratch buffer, a throwaway note that is not a file. It
+  /// closes without asking; Ctrl+S turns it into a file.
+  void newScratch() {
+    var n = 1;
+    String name() => n == 1 ? '*scratch*' : '*scratch $n*';
+    while (docs.any((d) => d.path == null && d.title == name())) {
+      n++;
+    }
+    _addDoc(_newDoc('')
+      ..scratch = true
+      ..title = name());
+  }
+
   /// Ctrl+N: a new note in the vault (next to the current note), or an
   /// untitled buffer when no folder is open.
   Future<void> newDocument() async {
@@ -210,7 +224,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       _prepare(d);
       // Replace an empty untitled buffer.
       final cur = doc;
-      if (cur != null && cur.path == null && !cur.dirty && cur.controller.text.isEmpty) {
+      if (cur != null && cur.path == null && !cur.scratch && !cur.dirty && cur.controller.text.isEmpty) {
         final i = docs.indexOf(cur);
         setState(() {
           docs[i] = d;
@@ -275,8 +289,66 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     }
   }
 
+  /// F2: renames the current file on disk (or names an unsaved buffer).
+  Future<void> renameDocument([OrgDocument? target]) async {
+    final d = target ?? doc;
+    if (d == null) return;
+    final p = d.path;
+    if (p == null) {
+      final name = await showTextPrompt(context, title: 'Rename buffer', initial: d.name, label: 'Name');
+      if (name == null || name.trim().isEmpty) return;
+      setState(() => d.title = name.trim());
+      _focusEditor();
+      return;
+    }
+    final v = vault;
+    final file = baseName(p);
+    final inVault = v != null && v.contains(p);
+    final initial = inVault ? stripNoteExtension(file) : file;
+    final dot = initial.lastIndexOf('.');
+    final name = await showTextPrompt(
+      context,
+      title: 'Rename',
+      initial: initial,
+      label: 'Name',
+      selectTo: dot > 0 ? dot : null,
+    );
+    if (name != null && name.trim().isNotEmpty && name.trim() != initial) {
+      await _renamePath(p, name);
+    }
+    _focusEditor();
+  }
+
+  /// Renames a file or folder on disk and points open tabs, recent files and
+  /// the vault at the new name.
+  Future<void> _renamePath(String path, String newName) async {
+    final v = vault;
+    try {
+      final target = v != null && v.contains(path) ? await v.rename(path, newName) : await renameEntry(path, newName);
+      if (target == path) return;
+      String moved(String p) {
+        if (p == path) return target;
+        if (p.startsWith('$path${Platform.pathSeparator}')) return target + p.substring(path.length);
+        return p;
+      }
+
+      setState(() {
+        for (final d in docs) {
+          final p = d.path;
+          if (p != null) d.path = moved(p);
+        }
+      });
+      settings.update((s) => s.recentFiles = [for (final f in s.recentFiles) moved(f)]);
+      if (v != null) v.revealPath(target);
+      _saveVaultState();
+      showMessage('Renamed to ${baseName(target)}');
+    } on FileSystemException catch (e) {
+      showMessage('Could not rename: ${e.message}');
+    }
+  }
+
   Future<bool> _confirmClose(OrgDocument d) async {
-    if (!d.dirty) return true;
+    if (!d.dirty || (d.scratch && d.path == null)) return true;
     setState(() => current = docs.indexOf(d));
     final choice = await askSave(context, d.name);
     switch (choice) {
@@ -295,7 +367,8 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final d = docs[i];
     if (!await _confirmClose(d)) return;
     setState(() {
-      docs.removeAt(i);
+      docs.remove(d);
+      if (docs.isEmpty) _nextQuote();
       if (current >= docs.length) current = docs.length - 1;
       if (current < 0) current = 0;
     });
@@ -437,20 +510,8 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
         case TreeAction.rename:
           final oldName = target.isDir ? target.name : stripNoteExtension(target.name);
           final name = await showTextPrompt(context, title: 'Rename', initial: oldName, label: 'Name');
-          if (name == null || name.isEmpty || name == oldName) return;
-          final newPath = await v.rename(target.path, name);
-          setState(() {
-            for (final d in docs) {
-              final p = d.path;
-              if (p == null) continue;
-              if (p == target.path) {
-                d.path = newPath;
-              } else if (target.isDir && p.startsWith('${target.path}${Platform.pathSeparator}')) {
-                d.path = newPath + p.substring(target.path.length);
-              }
-            }
-          });
-          _saveVaultState();
+          if (name == null || name.trim().isEmpty || name.trim() == oldName) return;
+          await _renamePath(target.path, name);
         case TreeAction.delete:
           final ok = await showConfirm(context,
               title: 'Move to trash',
@@ -758,6 +819,8 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
 
   Map<ShortcutActivator, VoidCallback> get _shortcuts => {
         const SingleActivator(LogicalKeyboardKey.keyN, control: true): newDocument,
+        const SingleActivator(LogicalKeyboardKey.keyB, control: true): newScratch,
+        const SingleActivator(LogicalKeyboardKey.f2): () => renameDocument(),
         const SingleActivator(LogicalKeyboardKey.keyO, control: true): openDialog,
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): () => save(),
         const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true): () => saveAs(),
@@ -944,6 +1007,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final v = vault;
     return [
       ('n', v == null ? 'New file' : 'New note', 'Ctrl+N', newDocument),
+      ('b', 'Scratch buffer', 'Ctrl+B', newScratch),
       if (v != null) ('p', 'Find note', 'Ctrl+P', quickSwitch),
       ('o', 'Open file', 'Ctrl+O', openDialog),
       ('f', v == null ? 'Open folder as vault' : 'Open another folder', '', openVaultDialog),
@@ -951,6 +1015,37 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
       ('t', 'Tutorial', '', () => _addDoc(_newDoc(tutorialText))),
       ('s', 'Settings', '', () => showSettingsDialog(context, settings)),
     ];
+  }
+
+  /// The dashboard's line from the Book of the Law; a new one each time the
+  /// dashboard shows, or on click.
+  int _quoteIndex = math.Random().nextInt(crowleyQuotes.length);
+
+  void _nextQuote() {
+    if (crowleyQuotes.length < 2) return;
+    var n = _quoteIndex;
+    while (n == _quoteIndex) {
+      n = math.Random().nextInt(crowleyQuotes.length);
+    }
+    _quoteIndex = n;
+  }
+
+  Widget _quote(OrgTheme t, TextStyle base) {
+    final (text, verse) = crowleyQuotes[_quoteIndex % crowleyQuotes.length];
+    return GestureDetector(
+      onTap: () => setState(_nextQuote),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: SizedBox(
+          width: 432,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(text, style: base.copyWith(color: t.levels[1], fontStyle: FontStyle.italic)),
+            const SizedBox(height: 4),
+            Text('Aleister Crowley, Liber AL $verse', style: base.copyWith(color: t.faint)),
+          ]),
+        ),
+      ),
+    );
   }
 
   Widget _dashboard(BuildContext context, OrgTheme t) {
@@ -1019,7 +1114,9 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
                     v == null ? 'plain text, org mode' : 'vault: ${v.name}',
                     style: base.copyWith(color: t.faint),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
+                  _quote(t, base),
+                  const SizedBox(height: 24),
                   for (final (k, label, hint, run) in items) row(k, label, hint, run),
                   if (recent.isNotEmpty) ...[
                     const SizedBox(height: 20),
@@ -1064,6 +1161,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
         SubmenuButton(menuChildren: [
           item(vault == null ? 'New file' : 'New note', newDocument,
               shortcut: const SingleActivator(LogicalKeyboardKey.keyN, control: true)),
+          item('New scratch buffer', newScratch, shortcut: const SingleActivator(LogicalKeyboardKey.keyB, control: true)),
           item('Open file…', openDialog, shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true)),
           SubmenuButton(
             menuChildren: [
@@ -1089,6 +1187,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
               shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true)),
           item('Save as…', hasDoc ? () => saveAs() : null,
               shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true)),
+          item('Rename…', hasDoc ? () => renameDocument() : null, shortcut: const SingleActivator(LogicalKeyboardKey.f2)),
           const Divider(height: 1),
           item('Close tab', hasDoc ? () => closeTab() : null,
               shortcut: const SingleActivator(LogicalKeyboardKey.keyW, control: true)),
@@ -1216,14 +1315,58 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     );
   }
 
+  int _lastTabTap = -1;
+  DateTime _lastTabTapTime = DateTime(0);
+
+  /// A click selects the tab; a second click on the same tab renames it.
+  void _tabTapped(int i) {
+    final now = DateTime.now();
+    final again = i == _lastTabTap && now.difference(_lastTabTapTime) < const Duration(milliseconds: 400);
+    _lastTabTap = again ? -1 : i;
+    _lastTabTapTime = now;
+    _selectTab(i);
+    if (again) renameDocument(docs[i]);
+  }
+
+  Future<void> _tabMenu(int i, Offset global) async {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (overlay is! RenderBox || i >= docs.length) return;
+    final d = docs[i];
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(global & const Size(1, 1), Offset.zero & overlay.size),
+      items: const [
+        PopupMenuItem(value: 'rename', child: Text('Rename…')),
+        PopupMenuItem(value: 'close', child: Text('Close')),
+        PopupMenuItem(value: 'others', child: Text('Close other tabs')),
+      ],
+    );
+    final at = docs.indexOf(d);
+    if (choice == null || at < 0) return;
+    switch (choice) {
+      case 'rename':
+        renameDocument(d);
+      case 'close':
+        closeTab(at);
+      case 'others':
+        for (final o in [...docs]) {
+          if (identical(o, d)) continue;
+          final k = docs.indexOf(o);
+          if (k >= 0) await closeTab(k);
+          if (docs.contains(o)) break;
+        }
+    }
+  }
+
   Widget _tab(BuildContext context, int i, OrgTheme t) {
     final d = docs[i];
     final selected = i == current;
     return Tooltip(
-      message: d.path ?? 'Not saved yet',
+      message: d.path ?? (d.scratch ? 'Scratch buffer, closes without saving' : 'Not saved yet'),
       child: GestureDetector(
-        onTap: () => _selectTab(i),
+        onTap: () => _tabTapped(i),
         onTertiaryTapUp: (_) => closeTab(i),
+        onSecondaryTapUp: (e) => _tabMenu(i, e.globalPosition),
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: Container(
@@ -1236,8 +1379,14 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
               ),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(d.name, style: TextStyle(color: selected ? t.accent : t.faint)),
-              if (d.dirty) Text(' ●', style: TextStyle(color: t.accent)),
+              Text(
+                d.name,
+                style: TextStyle(
+                  color: d.scratch ? (selected ? t.levels[1] : t.tag) : (selected ? t.accent : t.faint),
+                  fontStyle: d.scratch ? FontStyle.italic : null,
+                ),
+              ),
+              if (d.dirty && !d.scratch) Text(' ●', style: TextStyle(color: t.accent)),
               const SizedBox(width: 6),
               HoverBox(
                 theme: t,
@@ -1309,6 +1458,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           const SizedBox(width: 8),
           Text('UTF-8', style: faint),
           const SizedBox(width: 16),
+          if (d.scratch) ...[Text('scratch', style: TextStyle(color: t.tag)), const SizedBox(width: 10)],
           Text('Org', style: TextStyle(color: t.accent, fontWeight: FontWeight.w700)),
           const SizedBox(width: 10),
         ],

@@ -50,6 +50,8 @@ const keyBindings = <(String, List<(String, String)>)>[
   ]),
   ('Files and view', [
     ('Ctrl+N', 'New note (in the open folder) or new file'),
+    ('Ctrl+B', 'Scratch buffer: a throwaway note, closes without asking'),
+    ('F2, double click a tab', 'Rename the current file'),
     ('Ctrl+O', 'Open file'),
     ('Ctrl+P', 'Quick switcher: find or create a note in the folder'),
     ('Ctrl+Shift+E', 'Toggle the file tree'),

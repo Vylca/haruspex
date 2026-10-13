@@ -301,9 +301,17 @@ Future<void> showInfo(BuildContext context, String title, String message) {
 }
 
 /// Asks for a line of text; returns null when cancelled.
-Future<String?> showTextPrompt(BuildContext context, {required String title, String initial = '', String? label}) {
+/// [selectTo] limits the initial selection (for example to a file name
+/// without its extension).
+Future<String?> showTextPrompt(
+  BuildContext context, {
+  required String title,
+  String initial = '',
+  String? label,
+  int? selectTo,
+}) {
   final ctrl = TextEditingController(text: initial);
-  ctrl.selection = TextSelection(baseOffset: 0, extentOffset: initial.length);
+  ctrl.selection = TextSelection(baseOffset: 0, extentOffset: (selectTo ?? initial.length).clamp(0, initial.length));
   return showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(

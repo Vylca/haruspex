@@ -12,7 +12,7 @@ class HoverBox extends StatefulWidget {
     required this.onTap,
     required this.builder,
     this.tooltip,
-    this.onSecondaryTapDown,
+    this.onSecondaryTapUp,
     this.selected = false,
     this.hotColor,
   });
@@ -21,7 +21,8 @@ class HoverBox extends StatefulWidget {
   final VoidCallback? onTap;
   final Widget Function(bool hot) builder;
   final String? tooltip;
-  final GestureTapDownCallback? onSecondaryTapDown;
+  /// Right click. Uses the release so only the innermost handler runs.
+  final GestureTapUpCallback? onSecondaryTapUp;
 
   /// Drawn as the current item (dim orange background) when not hovered.
   final bool selected;
@@ -47,7 +48,7 @@ class _HoverBoxState extends State<HoverBox> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        onSecondaryTapDown: widget.onSecondaryTapDown,
+        onSecondaryTapUp: widget.onSecondaryTapUp,
         child: ColoredBox(
           color: hot ? (widget.hotColor ?? t.accent) : (widget.selected ? t.markerBg : Colors.transparent),
           child: widget.builder(hot),

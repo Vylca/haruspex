@@ -24,6 +24,13 @@ class OrgDocument extends ChangeNotifier {
   final ScrollController scroll = ScrollController();
   bool usesCrlf = false;
 
+  /// A scratch buffer: a throwaway note that is not a file and closes
+  /// without asking to save.
+  bool scratch = false;
+
+  /// Name shown for a buffer that is not saved to a file.
+  String? title;
+
   String _savedText;
   bool _dirty = false;
 
@@ -31,7 +38,7 @@ class OrgDocument extends ChangeNotifier {
 
   String get name {
     final p = path;
-    if (p == null) return 'untitled';
+    if (p == null) return title ?? 'untitled';
     final parts = p.split(Platform.pathSeparator);
     return parts.isEmpty ? p : parts.last;
   }
@@ -69,6 +76,8 @@ class OrgDocument extends ChangeNotifier {
     if (usesCrlf) text = text.replaceAll('\n', '\r\n');
     await File(target).writeAsString(text, flush: true);
     path = target;
+    scratch = false;
+    title = null;
     _savedText = saved;
     _dirty = false;
     notifyListeners();

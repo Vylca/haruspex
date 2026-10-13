@@ -27,6 +27,33 @@ class VaultEntry {
   String get name => baseName(path);
 }
 
+/// Renames a file or folder within its folder. A file keeps its extension
+/// when [newName] has none. Refuses names with a path separator and never
+/// replaces something that already exists. Returns the new path.
+Future<String> renameEntry(String path, String newName) async {
+  var name = newName.trim();
+  if (name.isEmpty || name.contains(_sep) || name == '.' || name == '..') {
+    throw FileSystemException('Not a valid name', newName);
+  }
+  final isDir = FileSystemEntity.isDirectorySync(path);
+  if (!isDir) {
+    final old = baseName(path);
+    final dot = old.lastIndexOf('.');
+    if (dot > 0 && name.lastIndexOf('.') <= 0) name = '$name${old.substring(dot)}';
+  }
+  final target = '${dirName(path)}$_sep$name';
+  if (target == path) return path;
+  if (FileSystemEntity.typeSync(target, followLinks: false) != FileSystemEntityType.notFound) {
+    throw FileSystemException('"$name" already exists', target);
+  }
+  if (isDir) {
+    await Directory(path).rename(target);
+  } else {
+    await File(path).rename(target);
+  }
+  return target;
+}
+
 /// A folder of notes, like an Obsidian vault. The folder is marked by a
 /// `.haruspex` directory that holds the workspace state (open tabs, expanded
 /// folders). Deleted notes go to `.trash` in the vault.
@@ -174,19 +201,16 @@ class Vault extends ChangeNotifier {
     return path;
   }
 
+  /// Renames a note or folder. A note keeps its extension when the new name
+  /// is not a note name. Never replaces an existing file.
   Future<String> rename(String path, String newName) async {
     final isDir = FileSystemEntity.isDirectorySync(path);
     var name = newName.trim();
-    if (!isDir && !isNote(name)) {
+    if (!isDir && name.isNotEmpty && !isNote(name)) {
       final m = RegExp(r'\.(org|txt|org_archive)$', caseSensitive: false).firstMatch(path);
       name = '$name${m?.group(0) ?? '.org'}';
     }
-    final target = '${dirName(path)}$_sep$name';
-    if (isDir) {
-      await Directory(path).rename(target);
-    } else {
-      await File(path).rename(target);
-    }
+    final target = await renameEntry(path, name);
     await scan();
     return target;
   }
