@@ -164,8 +164,9 @@ class _TitleBarState extends State<TitleBar> with WindowListener {
       height: 24,
       decoration: BoxDecoration(color: t.panel, border: Border(bottom: BorderSide(color: t.border))),
       child: Row(children: [
+        // 16 px logo in the 23 px above the border, on a whole pixel row.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.fromLTRB(8, 3, 8, 4),
           child: EarthLogo(color: t.accent, width: 18, stroke: 1.5),
         ),
         widget.menu,
