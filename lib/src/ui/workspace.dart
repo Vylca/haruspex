@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 
 import '../app/document.dart';
 import '../app/settings.dart';
+import '../app/spelling.dart';
 import '../app/vault.dart';
 import '../app/version.dart';
 import '../editor/highlighter.dart';
@@ -1222,6 +1223,9 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
               shortcut: const SingleActivator(LogicalKeyboardKey.keyF, control: true)),
           item('Replace…', hasDoc ? () => _showFind(replace: true) : null,
               shortcut: const SingleActivator(LogicalKeyboardKey.keyH, control: true)),
+          const Divider(height: 1),
+          item(settings.spellCheck ? 'Stop checking spelling' : 'Check spelling',
+              () => settings.update((s) => s.spellCheck = !s.spellCheck)),
         ], child: const Text('Edit')),
         SubmenuButton(menuChildren: [
           SubmenuButton(menuChildren: [
@@ -1469,12 +1473,80 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
           const SizedBox(width: 8),
           Text(d.encodingName, style: faint),
           const SizedBox(width: 16),
+          if (settings.spellCheck) ...[_spellLabel(d, t), const SizedBox(width: 16)],
           if (d.scratch) ...[Text('scratch', style: TextStyle(color: t.tag)), const SizedBox(width: 10)],
           Text('Org', style: TextStyle(color: t.accent, fontWeight: FontWeight.w700)),
           const SizedBox(width: 10),
         ],
       ]),
     );
+  }
+
+  /// The document's spelling language in the mode line. Click to pick
+  /// another one for this document.
+  Widget _spellLabel(OrgDocument d, OrgTheme t) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([d.controller, SpellService.instance]),
+      builder: (context, _) {
+        final svc = SpellService.instance;
+        final code = spellCodeFor(d, settings);
+        final String label;
+        final String tip;
+        if (d.spellLanguage == '') {
+          label = 'no spelling';
+          tip = 'Spelling is off for this document';
+        } else if (code == null) {
+          label = 'no dictionary';
+          tip = 'No dictionary for #+LANGUAGE: ${d.controller.analysis.keywords['LANGUAGE'] ?? ''}';
+        } else {
+          label = code;
+          final name = svc.dictionary(code)?.name ?? code;
+          tip = svc.failed(code) ? '$name: could not be loaded' : 'Spelling: $name';
+        }
+        return Tooltip(
+          message: tip,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (e) => _spellMenu(e.globalPosition, d),
+              child: Text(label, style: TextStyle(color: code == null ? t.faint : t.tag)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _spellMenu(Offset at, OrgDocument d) async {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (overlay is! RenderBox) return;
+    final svc = SpellService.instance;
+    final current = d.spellLanguage;
+    PopupMenuItem<String> entry(String value, String label, bool on) => PopupMenuItem(
+          height: 24,
+          value: value,
+          child: Text('${on ? '● ' : '  '}$label'),
+        );
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(at & const Size(1, 1), Offset.zero & overlay.size),
+      items: [
+        entry('auto', 'Automatic (#+LANGUAGE, then Settings)', current == null),
+        const PopupMenuDivider(height: 1),
+        for (final dict in svc.dictionaries) entry('=${dict.code}', '${dict.name}  ${dict.code}', current == dict.code),
+        const PopupMenuDivider(height: 1),
+        entry('off', 'Off for this document', current == ''),
+      ],
+    );
+    if (choice == null || !mounted) return;
+    setState(() {
+      d.spellLanguage = switch (choice) {
+        'auto' => null,
+        'off' => '',
+        _ => choice.substring(1),
+      };
+    });
   }
 
   Widget _echoArea(OrgTheme t) {

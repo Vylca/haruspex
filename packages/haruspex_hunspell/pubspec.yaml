@@ -1,0 +1,18 @@
+name: haruspex_hunspell
+description: Hunspell 1.7.5 for Haruspex, compiled from source and called through dart:ffi.
+version: 1.7.5
+publish_to: 'none'
+
+environment:
+  sdk: ^3.6.0
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      linux:
+        ffiPlugin: true

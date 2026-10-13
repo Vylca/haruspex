@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'src/app/settings.dart';
+import 'src/app/spelling.dart';
 import 'src/editor/org_theme.dart';
 import 'src/ui/hev_theme.dart';
 import 'src/ui/title_bar.dart';
@@ -13,10 +14,16 @@ Future<void> main(List<String> args) async {
   LicenseRegistry.addLicense(() async* {
     final text = await rootBundle.loadString('assets/fonts/NOTICE-PCDOS.txt');
     yield LicenseEntryWithLineBreaks(const ['PC DOS font'], text);
+    for (final code in bundledDictionaries.keys) {
+      final license = await rootBundle.loadString('assets/dictionaries/$code.license.txt');
+      yield LicenseEntryWithLineBreaks(['$code dictionary (${bundledDictionaries[code]})'], license);
+    }
   });
   await WindowChrome.init();
   final settings = AppSettings();
   await settings.load();
+  // Finds the dictionaries without holding up the window.
+  SpellService.instance.init();
   runApp(HaruspexApp(settings: settings, initialFiles: args));
 }
 

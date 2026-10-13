@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   file_selector: ^1.1.0
   window_manager: ^0.5.2
+  haruspex_hunspell:
+    path: packages/haruspex_hunspell
 
 dev_dependencies:
   flutter_test:
@@ -23,6 +25,7 @@ flutter:
     - assets/fonts/NOTICE-PCDOS.txt
     - assets/icon/haruspex.png
     - assets/icon/haruspex.svg
+    - assets/dictionaries/
   fonts:
     # The IBM PC DOS 2000 ISO 9241-3 text mode font (8x16), converted to
     # outlines by tool/build_font.py so it renders as crisp pixels at 16 px.

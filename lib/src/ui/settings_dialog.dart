@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../app/settings.dart';
+import '../app/spelling.dart';
 import '../editor/org_theme.dart';
 
 Future<List<String>>? _fontList;
@@ -32,6 +33,31 @@ Widget _fontPicker(AppSettings s, String label, String value, void Function(Stri
           child: Text('* TODO The quick brown fox  :tag:', style: TextStyle(fontFamily: value, fontSize: s.fontSize)),
         ),
       ]);
+    },
+  );
+}
+
+Widget _spellLanguagePicker(AppSettings s) {
+  return ListenableBuilder(
+    listenable: SpellService.instance,
+    builder: (context, _) {
+      final svc = SpellService.instance;
+      final system = svc.systemLanguage();
+      final dicts = svc.dictionaries;
+      final value = dicts.any((d) => d.code == s.spellLanguage) ? s.spellLanguage : '';
+      return DropdownMenu<String>(
+        key: ValueKey('spell|$value|${dicts.length}'),
+        width: 440,
+        menuHeight: 320,
+        initialSelection: value,
+        dropdownMenuEntries: [
+          DropdownMenuEntry(value: '', label: 'System language${system == null ? '' : ' ($system)'}'),
+          for (final d in dicts) DropdownMenuEntry(value: d.code, label: '${d.name}  ${d.code}'),
+        ],
+        onSelected: (v) {
+          if (v != null) s.update((x) => x.spellLanguage = v);
+        },
+      );
     },
   );
 }
@@ -75,6 +101,10 @@ Future<void> showSettingsDialog(BuildContext context, AppSettings settings) {
               _check('Bullets instead of stars (org-superstar)', s.superstar, (v) => s.update((x) => x.superstar = v)),
               _check('Larger top-level headings', s.scaleHeadings, (v) => s.update((x) => x.scaleHeadings = v)),
               _check('Fold drawers when opening files', s.foldDrawers, (v) => s.update((x) => x.foldDrawers = v)),
+              const _Label('Spelling'),
+              _check('Underline misspelled words', s.spellCheck, (v) => s.update((x) => x.spellCheck = v)),
+              _spellLanguagePicker(s),
+              const Text('A document can set its own language with #+LANGUAGE: fr (or en, de, pt-BR...).'),
               const _Label('Agenda files'),
               const Text('Open documents and the open folder are always included.'),
               for (final f in s.agendaFiles)

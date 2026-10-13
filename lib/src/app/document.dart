@@ -31,6 +31,11 @@ class OrgDocument extends ChangeNotifier {
   /// Name shown for a buffer that is not saved to a file.
   String? title;
 
+  /// Spelling language picked for this document in the mode line, for this
+  /// session: a dictionary code, '' for no checking, null to follow the
+  /// document's `#+LANGUAGE:` and the settings.
+  String? spellLanguage;
+
   String _savedText;
   bool _dirty = false;
 

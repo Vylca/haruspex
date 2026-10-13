@@ -66,6 +66,11 @@ const keyBindings = <(String, List<(String, String)>)>[
     ('Ctrl+Shift+O', 'Toggle outline'),
     ('Right click', 'Cut, copy, paste; in the file tree: new, rename, trash'),
   ]),
+  ('Spelling', [
+    ('Right click an underlined word', 'Corrections, add to dictionary, ignore'),
+    ('Click the language in the mode line', 'Spelling language of this document'),
+    ('#+LANGUAGE: fr', 'Language of a document (en, fr, de, es, it, pt, pt-BR, nl, ru)'),
+  ]),
 ];
 
 Future<void> showKeyBindings(BuildContext context) {

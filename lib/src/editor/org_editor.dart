@@ -8,9 +8,11 @@ import 'package:flutter/services.dart';
 
 import '../app/document.dart';
 import '../app/settings.dart';
+import '../app/spelling.dart';
 import '../org/analysis.dart';
 import '../org/edits.dart';
 import '../org/lists.dart';
+import '../org/spell_scan.dart';
 import '../org/table.dart';
 import '../org/timestamp.dart';
 import '../ui/dialogs.dart';
@@ -188,12 +190,14 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     _remoteValue(c.value);
     c.addListener(_onControllerChanged);
     doc.focusNode.addListener(_onFocusChanged);
+    SpellService.instance.addListener(_onSpellChanged);
   }
 
   @override
   void dispose() {
     c.removeListener(_onControllerChanged);
     doc.focusNode.removeListener(_onFocusChanged);
+    SpellService.instance.removeListener(_onSpellChanged);
     _closeConnection();
     _blink?.cancel();
     _caretOn.dispose();
@@ -234,6 +238,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       }
       _redo.clear();
       _lastEdit = _structural ? DateTime(0) : now;
+      _editCaret = v.selection.isValid && v.selection.isCollapsed ? v.selection.extentOffset : -1;
     }
     _lastValue = v;
     // Always recomputed, so the input method's lines match the document.
@@ -245,6 +250,95 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     }
     _restartBlink();
     if (mounted) setState(() {});
+  }
+
+  // -------------------------------------------------------------------------
+  // Spelling
+  // -------------------------------------------------------------------------
+
+  /// Misspelled words per line, keyed by language, line kind and text.
+  final Map<String, List<TextRange>> _spellCache = {};
+  int _spellGeneration = -1;
+
+  /// Caret position right after the last edit: the word being typed there is
+  /// not flagged until the caret leaves it.
+  int _editCaret = -1;
+
+  void _onSpellChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The loaded dictionary for this document, or null (spelling off, no
+  /// dictionary for its language, or still loading).
+  SpellChecker? get _speller {
+    final code = spellCodeFor(doc, widget.settings);
+    return code == null ? null : SpellService.instance.checker(code);
+  }
+
+  /// Misspelled words of line [i], as ranges of the line.
+  List<TextRange> _misspelled(SpellChecker sp, int i) {
+    final svc = SpellService.instance;
+    if (svc.generation != _spellGeneration) {
+      _spellCache.clear();
+      _spellGeneration = svc.generation;
+    }
+    final info = a.infos[i];
+    final line = a.lines[i];
+    final key = '${sp.code}|${info.kind.index}|${info.blockType ?? ''}|${info.heading?.titleStart ?? -1}|$line';
+    final hit = _spellCache[key];
+    if (hit != null) return hit;
+    if (_spellCache.length > 4000) _spellCache.clear();
+    final bad = <TextRange>[];
+    for (final r in spellWords(info, line)) {
+      final w = line.substring(r.start, r.end);
+      if (!svc.isIgnored(w) && !sp.check(w)) bad.add(r);
+    }
+    return _spellCache[key] = bad;
+  }
+
+  /// The misspelled word at text offset [o]: its range in the document and
+  /// the word.
+  (TextRange, String)? misspelledAt(int o) {
+    final sp = _speller;
+    if (sp == null) return null;
+    final an = a;
+    final line = an.lineOfOffset(o.clamp(0, an.text.length));
+    final local = o - an.lineStarts[line];
+    for (final r in _misspelled(sp, line)) {
+      if (local >= r.start && local <= r.end) {
+        final start = an.lineStarts[line] + r.start;
+        return (TextRange(start: start, end: start + r.end - r.start), an.lines[line].substring(r.start, r.end));
+      }
+    }
+    return null;
+  }
+
+  /// A pixel squiggle under each misspelled word of the line.
+  void _paintSpelling(Canvas canvas, LineLayout lay, int line, int start, double dx) {
+    final sp = _speller;
+    if (sp == null) return;
+    final bad = _misspelled(sp, line);
+    if (bad.isEmpty) return;
+    final sel = c.selection;
+    final typing = sel.isValid && sel.isCollapsed && sel.extentOffset == _editCaret ? _editCaret - start : -1;
+    final u = math.max<double>(1, (widget.settings.fontSize / 16).roundToDouble());
+    final paint = Paint()
+      ..color = _theme.todo
+      ..isAntiAlias = false;
+    for (final r in bad) {
+      if (typing >= r.start && typing <= r.end) continue;
+      final boxes = lay.painter.getBoxesForSelection(TextSelection(baseOffset: r.start, extentOffset: r.end));
+      for (final b in boxes) {
+        final left = (dx + b.left).roundToDouble();
+        final right = (dx + b.right).roundToDouble();
+        final y = (b.bottom - 2 * u).roundToDouble();
+        var k = 0;
+        for (var x = left; x < right; x += 2 * u, k++) {
+          final w = math.min<double>(2 * u, right - x);
+          canvas.drawRect(Rect.fromLTWH(x, k.isEven ? y : y + u, w, u), paint);
+        }
+      }
+    }
   }
 
   /// The caret stays lit while the editor has focus (no blinking, like Doom
@@ -683,6 +777,8 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     }
 
     lay.painter.paint(canvas, Offset(dx, 0));
+
+    _paintSpelling(canvas, lay, line, start, dx);
 
     final comp = c.value.composing;
     if (comp.isValid && !comp.isCollapsed) {
@@ -1920,10 +2016,24 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     final link = linkAt(a.lines[caretLine], caretCol);
     final overlay = Overlay.of(context).context.findRenderObject();
     if (overlay is! RenderBox) return;
+    final typo = hasSel ? null : misspelledAt(o);
+    final fixes = typo == null ? const <String>[] : (_speller?.suggest(typo.$2) ?? const <String>[]).take(7).toList();
     final choice = await showMenu<String>(
       context: context,
       position: RelativeRect.fromRect(global & const Size(1, 1), Offset.zero & overlay.size),
       items: [
+        if (typo != null) ...[
+          for (final f in fixes)
+            PopupMenuItem(
+              height: 24,
+              value: 'fix:$f',
+              child: Text(f, style: TextStyle(color: _theme.bright, fontWeight: FontWeight.w700)),
+            ),
+          if (fixes.isEmpty) const PopupMenuItem(height: 24, enabled: false, child: Text('No suggestions')),
+          PopupMenuItem(height: 24, value: 'learn', child: Text('Add "${typo.$2}" to dictionary')),
+          const PopupMenuItem(height: 24, value: 'ignore', child: Text('Ignore')),
+          const PopupMenuDivider(height: 1),
+        ],
         if (link != null) const PopupMenuItem(height: 24, value: 'open', child: Text('Open link')),
         PopupMenuItem(height: 24, value: 'cut', enabled: hasSel, child: const Text('Cut')),
         PopupMenuItem(height: 24, value: 'copy', enabled: hasSel, child: const Text('Copy')),
@@ -1932,7 +2042,17 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       ],
     );
     if (!mounted) return;
+    if (typo != null && choice != null && choice.startsWith('fix:')) {
+      _select(TextSelection(baseOffset: typo.$1.start, extentOffset: typo.$1.end));
+      _replaceSelection(choice.substring(4));
+      doc.focusNode.requestFocus();
+      return;
+    }
     switch (choice) {
+      case 'learn':
+        SpellService.instance.addWord(typo!.$2);
+      case 'ignore':
+        SpellService.instance.ignore(typo!.$2);
       case 'open':
         openLinkAtPoint();
       case 'cut':

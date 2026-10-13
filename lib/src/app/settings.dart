@@ -28,6 +28,13 @@ class AppSettings extends ChangeNotifier {
   /// Indent body text to line up with its heading (like org-indent-mode).
   bool indentBody = true;
   bool foldDrawers = true;
+
+  /// Underline misspelled words.
+  bool spellCheck = true;
+
+  /// Dictionary for documents without a `#+LANGUAGE:` line, such as "fr_FR".
+  /// Empty: the system language.
+  String spellLanguage = '';
   bool showOutline = false;
   bool showFiles = true;
 
@@ -85,6 +92,8 @@ class AppSettings extends ChangeNotifier {
       superstar = j['superstar'] as bool? ?? superstar;
       indentBody = j['indentBody'] as bool? ?? indentBody;
       foldDrawers = j['foldDrawers'] as bool? ?? foldDrawers;
+      spellCheck = j['spellCheck'] as bool? ?? spellCheck;
+      spellLanguage = j['spellLanguage'] as String? ?? spellLanguage;
       showOutline = j['showOutline'] as bool? ?? showOutline;
       showFiles = j['showFiles'] as bool? ?? showFiles;
       filesWidth = (j['filesWidth'] as num?)?.toDouble() ?? filesWidth;
@@ -116,6 +125,8 @@ class AppSettings extends ChangeNotifier {
         'lineNumbers': lineNumbers,
         'indentBody': indentBody,
         'foldDrawers': foldDrawers,
+        'spellCheck': spellCheck,
+        'spellLanguage': spellLanguage,
         'showOutline': showOutline,
         'showFiles': showFiles,
         'filesWidth': filesWidth,
