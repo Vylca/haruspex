@@ -4,8 +4,9 @@
 
 The logo is the alchemical symbol for earth.
 
-A plain text editor for Linux (Android later) that uses Org mode as its
-backbone. Files stay ordinary `.org` / `.txt` text, compatible with Emacs.
+A plain text editor for Linux and macOS (Android later) that uses Org mode
+as its backbone. Files stay ordinary `.org` / `.txt` text, compatible with
+Emacs.
 
 ## Install (Linux)
 
@@ -17,6 +18,25 @@ cd /tmp && tar -xzf ~/Downloads/haruspex-linux-x64.tar.gz && ./haruspex/install.
 ```
 
 The same command updates an existing install.
+
+## Install (macOS)
+
+Download `haruspex-macos.zip` from the [latest release](../../releases/tag/latest),
+unzip it and move `Haruspex.app` to Applications. It runs on Intel and Apple
+silicon Macs.
+
+The app is not signed with an Apple developer certificate, so macOS blocks
+it the first time. Either open it once from System Settings > Privacy &
+Security > Open Anyway, or run:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Haruspex.app
+```
+
+On a Mac, application shortcuts use Cmd (Cmd+S, Cmd+N, Cmd+C...), the menus
+are in the menu bar at the top of the screen, and Option+arrows move by word
+on plain text. Org commands are the same as on Linux: Ctrl+C starts the
+`C-c` prefix, Option+arrows act on headings, items and tables.
 
 ## Build and run from source (Linux)
 

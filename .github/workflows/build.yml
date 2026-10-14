@@ -54,32 +54,100 @@ jobs:
           name: haruspex-linux-x64
           path: haruspex-linux-x64.tar.gz
 
-      - name: Publish as the latest release
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest haruspex-linux-x64.tar.gz \
-            --title "Latest build" \
-            --notes "Built from ${GITHUB_SHA::7}" \
-            --target "$GITHUB_SHA"
-
       - name: Test
-        if: always()
         run: |
           set -o pipefail
           flutter test 2>&1 | tee -a ci.log
 
-      - name: Publish the build log
+      - uses: actions/upload-artifact@v4
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
+        with:
+          name: log-linux
+          path: ci.log
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate macOS runner
         run: |
-          touch ci.log
+          flutter create --platforms=macos --project-name haruspex --org io.github.vylca .
+          bash tool/patch_macos.sh
+
+      - run: flutter pub get
+
+      - name: Build
+        run: |
+          set -o pipefail
+          flutter --version | tee ci-macos.log
+          flutter build macos --release 2>&1 | tee -a ci-macos.log
+
+      - name: Package
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/macos/Build/Products/Release/Haruspex.app haruspex-macos.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: haruspex-macos
+          path: haruspex-macos.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-macos
+          path: ci-macos.log
+
+  # The latest release gets the Linux build once it passed its tests, and
+  # the Mac build when it built.
+  release:
+    needs: [linux, macos]
+    if: always() && github.ref == 'refs/heads/main' && needs.linux.result == 'success'
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: haruspex-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish as the latest release
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest dist/* \
+            --title "Latest build" \
+            --notes "Built from ${GITHUB_SHA::7}" \
+            --target "$GITHUB_SHA"
+
+  logs:
+    needs: [linux, macos]
+    if: always()
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: log-*
+          merge-multiple: true
+          path: logs
+
+      - name: Publish the build logs
+        run: |
+          touch logs/ci.log logs/ci-macos.log
           gh release delete ci-log --yes --cleanup-tag || true
-          gh release create ci-log ci.log \
+          gh release create ci-log logs/ci.log logs/ci-macos.log \
             --prerelease \
             --title "Build log" \
-            --notes "Log of the last build, ${GITHUB_SHA::7}" \
+            --notes "Logs of the last build, ${GITHUB_SHA::7}" \
             --target "$GITHUB_SHA"

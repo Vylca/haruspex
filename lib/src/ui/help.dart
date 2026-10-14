@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app/platform.dart';
 import '../editor/org_theme.dart';
 
 const keyBindings = <(String, List<(String, String)>)>[
@@ -73,6 +74,20 @@ const keyBindings = <(String, List<(String, String)>)>[
   ]),
 ];
 
+/// Text navigation on a Mac, where it differs from Linux.
+const _macText = (
+  'Text on a Mac',
+  [
+    ('Option+Left / Right', 'Previous / next word (Org commands on headings, items, tables)'),
+    ('Cmd+Left / Right', 'Start / end of the line'),
+    ('Cmd+Up / Down', 'Start / end of the document'),
+    ('Option+Backspace', 'Delete the word before the caret'),
+    ('Cmd+Backspace', 'Delete to the start of the line'),
+    ('Cmd+Shift+[ / ]', 'Previous / next tab'),
+    ('Cmd+,', 'Settings'),
+  ],
+);
+
 Future<void> showKeyBindings(BuildContext context) {
   return showDialog<void>(
     context: context,
@@ -82,12 +97,14 @@ Future<void> showKeyBindings(BuildContext context) {
         width: 640,
         height: 520,
         child: ListView(children: [
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: Text('Ctrl+C with no selection starts an Org command (like C-c in Emacs). '
-                'With a selection it copies. Escape cancels.'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(isMac
+                ? 'Ctrl+C starts an Org command (like C-c in Emacs), Cmd+C copies. Escape cancels.'
+                : 'Ctrl+C with no selection starts an Org command (like C-c in Emacs). '
+                    'With a selection it copies. Escape cancels.'),
           ),
-          for (final (section, rows) in keyBindings) ...[
+          for (final (section, rows) in [...keyBindings, if (isMac) _macText]) ...[
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
               child: Text(section, style: TextStyle(color: OrgTheme.hev.levels[1])),
@@ -96,7 +113,7 @@ Future<void> showKeyBindings(BuildContext context) {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  SizedBox(width: 240, child: Text(k, style: TextStyle(color: OrgTheme.hev.accent))),
+                  SizedBox(width: 240, child: Text(platformKeys(k), style: TextStyle(color: OrgTheme.hev.accent))),
                   Expanded(child: Text(d)),
                 ]),
               ),

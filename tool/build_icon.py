@@ -4,6 +4,7 @@ triangle crossed by a bar): as a vector for the app icon, and as pixel art
 for the dashboard.
 
     python3 tool/build_icon.py assets/icon   # haruspex.svg and haruspex.png
+    python3 tool/build_icon.py --macos assets/icon/macos   # macOS app icon
     python3 tool/build_icon.py --rows        # dashboard logo, pixel art
 
 The vector geometry matches EarthLogo in lib/src/ui/pixel_widgets.dart.
@@ -114,10 +115,48 @@ def icon_png(path):
     big.resize((c["size"], c["size"]), Image.LANCZOS).save(path)
 
 
+def macos_icons(out):
+    """The macOS app icon at every size it needs. Apple's grid: a rounded
+    square of 824 on a 1024 canvas, with a soft shadow below it."""
+    from PIL import Image, ImageDraw, ImageFilter
+
+    big_size, box, radius = 1024, 824, 185
+    rgb = lambda h: tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+    k = 4
+    s = big_size * k
+    m = (big_size - box) // 2
+    canvas = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).rounded_rectangle(
+        (m * k, (m + 12) * k, (big_size - m) * k, (big_size - m + 12) * k), radius=radius * k, fill=(0, 0, 0, 110))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(14 * k))
+    canvas.alpha_composite(shadow)
+    d = ImageDraw.Draw(canvas)
+    d.rounded_rectangle((m * k, m * k, (big_size - m) * k - 1, (big_size - m) * k - 1), radius=radius * k,
+                        fill=rgb(ICON["box"]) + (255,))
+    # The logo in the same proportion to the square as on Linux.
+    width = box * ICON["width"] / (ICON["size"] - 2 * ICON["margin"])
+    stroke = width * ICON["stroke"] / ICON["width"]
+    h = width * math.sqrt(3) / 2
+    left = (big_size - width) / 2
+    top = (big_size - h) / 2 + box * ICON["nudge"] / (ICON["size"] - 2 * ICON["margin"])
+    outer, inner, bar = logo_shapes(width, stroke, left, top)
+    sc = lambda p: [(x * k, y * k) for x, y in p]
+    d.polygon(sc(outer), fill=rgb(ICON["fg"]) + (255,))
+    d.polygon(sc(inner), fill=rgb(ICON["box"]) + (255,))
+    d.rectangle(tuple(v * k for v in bar), fill=rgb(ICON["fg"]) + (255,))
+    full = canvas.resize((big_size, big_size), Image.LANCZOS)
+    Path(out).mkdir(parents=True, exist_ok=True)
+    for size in (16, 32, 64, 128, 256, 512, 1024):
+        full.resize((size, size), Image.LANCZOS).save(Path(out) / f"app_icon_{size}.png")
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "--rows":
         for r in thin_rows():
             print(f"  '{r}',")
+    elif sys.argv[1] == "--macos":
+        macos_icons(sys.argv[2])
     else:
         out = Path(sys.argv[1])
         icon_svg(out / "haruspex.svg")

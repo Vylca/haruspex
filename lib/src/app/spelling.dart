@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:haruspex_hunspell/haruspex_hunspell.dart';
 
 import 'document.dart';
+import 'platform.dart';
 import 'settings.dart';
 
 /// A Hunspell dictionary on disk.
@@ -185,13 +186,19 @@ class SpellService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Bundled dictionaries are Flutter assets. On Linux they are plain files
-  /// next to the app. Elsewhere they are copied out of the bundle once.
+  /// Bundled dictionaries are Flutter assets: plain files next to the app
+  /// on Linux, inside the app bundle on a Mac. Elsewhere they are copied out
+  /// of the bundle once.
   static Future<String?> _bundledDir() async {
     try {
       final exeDir = File(Platform.resolvedExecutable).parent.path;
-      final direct = '$exeDir/data/flutter_assets/assets/dictionaries';
-      if (File('$direct/en_US.aff').existsSync()) return direct;
+      for (final assets in [
+        '$exeDir/data/flutter_assets',
+        '$exeDir/../Frameworks/App.framework/Resources/flutter_assets',
+      ]) {
+        final direct = '$assets/assets/dictionaries';
+        if (File('$direct/en_US.aff').existsSync()) return direct;
+      }
       final cache = _cacheDir();
       if (cache == null) return null;
       final out = Directory('$cache/dictionaries');
@@ -215,8 +222,7 @@ class SpellService extends ChangeNotifier {
   }
 
   static String? _cacheDir() {
-    final env = Platform.environment;
-    final base = env['XDG_CACHE_HOME'] ?? (env['HOME'] != null ? '${env['HOME']}/.cache' : null);
+    final base = cacheHome();
     return base == null ? Directory.systemTemp.path : '$base/haruspex';
   }
 
@@ -224,6 +230,13 @@ class SpellService extends ChangeNotifier {
     final env = Platform.environment;
     final home = env['HOME'];
     final data = env['XDG_DATA_HOME'] ?? (home != null ? '$home/.local/share' : null);
+    if (Platform.isMacOS) {
+      // Where Hunspell dictionaries for other Mac apps usually go.
+      return [
+        '/Library/Spelling',
+        if (home != null) '$home/Library/Spelling',
+      ];
+    }
     return [
       '/usr/share/hunspell',
       '/usr/share/myspell',

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/document.dart';
+import '../app/platform.dart';
 import '../app/settings.dart';
 import '../app/spelling.dart';
 import '../org/analysis.dart';
@@ -1190,7 +1191,9 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       _prefixCommand(e, ctrl);
       return KeyEventResult.handled;
     }
-    if (ctrl && !alt && !shift && k == LogicalKeyboardKey.keyC && c.selection.isCollapsed) {
+    // Ctrl+C starts an Org command (C-c). On Linux it copies when text is
+    // selected. On a Mac copying is Cmd+C, so Ctrl+C is always the prefix.
+    if (ctrl && !alt && !shift && !meta && k == LogicalKeyboardKey.keyC && (c.selection.isCollapsed || isMac)) {
       _setPrefix(true);
       return KeyEventResult.handled;
     }
@@ -1208,7 +1211,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     } else if (!ctrl && !alt && !shift && k == LogicalKeyboardKey.delete) {
       done = _guardDelete();
     }
-    if (!done) done = _editingKey(k, ctrl, alt, shift);
+    if (!done) done = isMac ? _macEditingKey(k, ctrl, alt, shift, meta) : _editingKey(k, ctrl, alt, shift);
     if (done) {
       _restartBlink();
       return KeyEventResult.handled;
@@ -1217,6 +1220,47 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
     // the like can still reach the window's shortcuts.
     if (!ctrl && !alt && !meta && e.character != null) return KeyEventResult.skipRemainingHandlers;
     return KeyEventResult.ignored;
+  }
+
+  /// Plain text editing and navigation the Mac way: Option moves and
+  /// deletes by word, Cmd+arrows go to the ends of the line or document,
+  /// Cmd does the clipboard and undo. Option+arrows on headings, items and
+  /// tables are Org commands, handled before this.
+  bool _macEditingKey(LogicalKeyboardKey k, bool ctrl, bool alt, bool shift, bool meta) {
+    final left = k == LogicalKeyboardKey.arrowLeft, right = k == LogicalKeyboardKey.arrowRight;
+    final up = k == LogicalKeyboardKey.arrowUp, down = k == LogicalKeyboardKey.arrowDown;
+    if (ctrl) return false;
+    if (meta && !alt) {
+      if (left || right) {
+        _homeEnd(right, false, shift);
+        return true;
+      }
+      if (up || down) {
+        _homeEnd(down, true, shift);
+        return true;
+      }
+      if (k == LogicalKeyboardKey.backspace) {
+        final sel = c.selection;
+        if (sel.isValid && sel.isCollapsed) {
+          final start = a.lineStarts[caretLine];
+          if (sel.extentOffset > start) _select(TextSelection(baseOffset: start, extentOffset: sel.extentOffset));
+        }
+        _replaceSelection('');
+        return true;
+      }
+      // Cmd+C, X, V, A, Z work like Ctrl+ elsewhere.
+      return _editingKey(k, true, false, shift);
+    }
+    if (alt && !meta) {
+      // Option moves and deletes by word.
+      if (left || right || k == LogicalKeyboardKey.backspace || k == LogicalKeyboardKey.delete) {
+        return _editingKey(k, true, false, shift);
+      }
+      return false;
+    }
+    if (meta || alt) return false;
+    // Unmodified keys: the same as elsewhere, minus the Ctrl shortcuts.
+    return _editingKey(k, false, false, shift);
   }
 
   /// Plain text editing and navigation.
@@ -2003,7 +2047,7 @@ class OrgEditorState extends State<OrgEditor> with TextInputClient {
       return;
     }
     _dragging = false;
-    if (_clicks == 1 && HardwareKeyboard.instance.isControlPressed) openLinkAtPoint(silent: true);
+    if (_clicks == 1 && primaryPressed) openLinkAtPoint(silent: true);
   }
 
   Future<void> _contextMenu(Offset global, Offset local) async {

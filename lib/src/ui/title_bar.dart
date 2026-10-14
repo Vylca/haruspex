@@ -6,7 +6,10 @@ import 'package:window_manager/window_manager.dart';
 import '../editor/org_theme.dart';
 import 'pixel_widgets.dart';
 
-/// The app draws its own title bar: the system one is hidden at start.
+/// The app draws its own title bar: the system one is hidden at start. On
+/// Linux the window has no frame at all and the app draws the window
+/// buttons. On a Mac the system keeps its three buttons (and the resizable
+/// frame) over the app's title bar.
 class WindowChrome {
   WindowChrome._();
 
@@ -14,21 +17,53 @@ class WindowChrome {
   /// and other platforms keep the plain layout).
   static bool enabled = false;
 
+  /// Running on macOS with the system's window buttons on the left.
+  static bool mac = false;
+
+  /// Called when the window's close button is pressed on a Mac, instead of
+  /// closing right away, so unsaved changes can be saved.
+  static VoidCallback? onClose;
+
   /// Hides the system title bar. Call before runApp.
   static Future<void> init() async {
-    if (!Platform.isLinux) return;
+    if (!Platform.isLinux && !Platform.isMacOS) return;
     try {
       await windowManager.ensureInitialized();
-      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+      if (Platform.isMacOS) {
+        await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+        await windowManager.setPreventClose(true);
+        windowManager.addListener(_CloseListener());
+        mac = true;
+      } else {
+        await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+      }
       enabled = true;
     } catch (_) {
       enabled = false;
+      mac = false;
     }
   }
 
-  /// Lets the window be resized from its edges when it has no frame.
+  /// Lets the window be resized from its edges when it has no frame (the
+  /// Mac window keeps its own).
   static Widget resizable(Widget child) =>
-      enabled ? DragToResizeArea(resizeEdgeSize: 4, child: child) : child;
+      enabled && !mac ? DragToResizeArea(resizeEdgeSize: 4, child: child) : child;
+
+  /// Height of the title bar: on a Mac, the height the system buttons are
+  /// centered in.
+  static double get height => mac ? 28 : 24;
+}
+
+class _CloseListener with WindowListener {
+  @override
+  void onWindowClose() {
+    final close = WindowChrome.onClose;
+    if (close != null) {
+      close();
+    } else {
+      windowManager.destroy();
+    }
+  }
 }
 
 const _minimize = [
@@ -153,25 +188,29 @@ class _TitleBarState extends State<TitleBar> with WindowListener {
         child: Text(widget.title, overflow: TextOverflow.ellipsis, style: TextStyle(color: t.faint)),
       ),
     );
+    final mac = WindowChrome.mac;
     if (on) {
       title = GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onSecondaryTap: windowManager.popUpWindowMenu,
+        onSecondaryTap: mac ? null : windowManager.popUpWindowMenu,
         child: DragToMoveArea(child: title),
       );
     }
+    final h = WindowChrome.height;
     return Container(
-      height: 24,
+      height: h,
       decoration: BoxDecoration(color: t.panel, border: Border(bottom: BorderSide(color: t.border))),
       child: Row(children: [
-        // 16 px logo in the 23 px above the border, on a whole pixel row.
+        // Room for the Mac's close, minimize and zoom buttons.
+        if (mac) const SizedBox(width: 72),
+        // 16 px logo in the space above the border, on a whole pixel row.
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 3, 8, 4),
+          padding: EdgeInsets.fromLTRB(8, ((h - 17) / 2).floorToDouble(), 8, ((h - 17) / 2).ceilToDouble()),
           child: EarthLogo(color: t.accent, width: 18, stroke: 1.5),
         ),
         widget.menu,
         Expanded(child: title),
-        if (on) ...[
+        if (on && !mac) ...[
           _button(_minimize, 'Minimize', windowManager.minimize),
           _button(_maximized ? _restore : _maximize, _maximized ? 'Restore' : 'Maximize', _toggleMaximize),
           _button(_close, 'Close', widget.onClose, danger: true),

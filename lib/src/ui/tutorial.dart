@@ -1,4 +1,9 @@
-const tutorialText = r'''#+TITLE: Welcome to Haruspex
+import '../app/platform.dart';
+
+/// The tutorial document, with the key names of this platform.
+String get tutorialText => platformKeys(_tutorial);
+
+const _tutorial = r'''#+TITLE: Welcome to Haruspex
 #+TODO: TODO NEXT WAITING | DONE CANCELED
 #+STARTUP: showall
 

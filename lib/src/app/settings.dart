@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/material.dart';
 
 import '../editor/org_theme.dart';
+import 'font_names.dart';
 
 class AppSettings extends ChangeNotifier {
   /// Bumped when the default look changes, so older settings files pick up
@@ -166,20 +168,39 @@ class AppSettings extends ChangeNotifier {
   }
 }
 
-/// The bundled pixel font plus the installed font families, from fontconfig.
+/// The bundled pixel font plus the installed font families: from fontconfig
+/// on Linux, from the font folders on a Mac.
 Future<List<String>> systemFontFamilies() async {
-  final families = <String>{pixelFont, 'monospace', 'sans-serif', 'serif'};
-  try {
-    final r = await Process.run('fc-list', [':', 'family']);
-    if (r.exitCode == 0) {
-      for (final line in (r.stdout as String).split('\n')) {
-        final name = line.split(',').first.trim();
-        if (name.isNotEmpty && !name.startsWith('.')) families.add(name);
-      }
+  final families = <String>{pixelFont};
+  if (Platform.isMacOS) {
+    families.addAll(['Menlo', 'Helvetica', 'Times']);
+    try {
+      families.addAll(await _macFonts(Platform.environment['HOME']));
+    } catch (_) {
+      // Unreadable font folders: only the bundled font and the basics.
     }
-  } catch (_) {
-    // fc-list missing: only the generic names are offered.
+  } else {
+    families.addAll(['monospace', 'sans-serif', 'serif']);
+    try {
+      final r = await Process.run('fc-list', [':', 'family']);
+      if (r.exitCode == 0) {
+        for (final line in (r.stdout as String).split('\n')) {
+          final name = line.split(',').first.trim();
+          if (name.isNotEmpty && !name.startsWith('.')) families.add(name);
+        }
+      }
+    } catch (_) {
+      // fc-list missing: only the generic names are offered.
+    }
   }
   final list = families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
   return list;
 }
+
+/// Reads the Mac font folders in another isolate. Not async, so the closure
+/// only captures [home].
+Future<Set<String>> _macFonts(String? home) => Isolate.run(() => fontFamiliesIn([
+      '/System/Library/Fonts',
+      '/Library/Fonts',
+      if (home != null) '$home/Library/Fonts',
+    ]));

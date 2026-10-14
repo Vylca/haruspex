@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../app/platform.dart';
 import '../editor/org_theme.dart';
 
-/// Scroll views stay put while Ctrl is held, so Ctrl+mouse wheel can zoom.
+/// Scroll views stay put while Ctrl (Cmd on a Mac) is held, so Ctrl+mouse
+/// wheel can zoom. No bouncing at the ends, on macOS either.
 class HaruspexScrollBehavior extends MaterialScrollBehavior {
   const HaruspexScrollBehavior();
 
   @override
-  ScrollPhysics getScrollPhysics(BuildContext context) => _NoCtrlScrollPhysics(parent: super.getScrollPhysics(context));
+  ScrollPhysics getScrollPhysics(BuildContext context) => const _NoCtrlScrollPhysics(parent: ClampingScrollPhysics());
 }
 
 class _NoCtrlScrollPhysics extends ScrollPhysics {
@@ -19,7 +20,7 @@ class _NoCtrlScrollPhysics extends ScrollPhysics {
 
   @override
   bool shouldAcceptUserOffset(ScrollMetrics position) =>
-      !HardwareKeyboard.instance.isControlPressed && super.shouldAcceptUserOffset(position);
+      !primaryPressed && super.shouldAcceptUserOffset(position);
 }
 
 /// A text field without any box, for prompts in the style of a minibuffer.

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/document.dart';
+import '../app/platform.dart';
 import '../app/settings.dart';
 import '../app/spelling.dart';
 import '../app/vault.dart';
@@ -24,6 +25,7 @@ import 'dialogs.dart';
 import 'file_tree.dart';
 import 'help.dart';
 import 'hev_theme.dart';
+import 'menus.dart';
 import 'outline_panel.dart';
 import 'pixel_widgets.dart';
 import 'quick_switcher.dart';
@@ -81,12 +83,16 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     super.initState();
     settings.addListener(_onSettings);
     _lifecycle = AppLifecycleListener(onExitRequested: _onExitRequested);
+    // The Mac window's close button asks to save, like Quit.
+    WindowChrome.onClose = quit;
+    if (Platform.isMacOS) _macFiles.setMethodCallHandler(_onMacFiles);
     WidgetsBinding.instance.addPostFrameCallback((_) => _openInitial());
   }
 
   @override
   void dispose() {
     settings.removeListener(_onSettings);
+    if (WindowChrome.onClose == quit) WindowChrome.onClose = null;
     _lifecycle.dispose();
     _messageTimer?.cancel();
     _wordTimer?.cancel();
@@ -106,9 +112,34 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     if (mounted) setState(() {});
   }
 
+  /// Files opened from the Finder on a Mac (see tool/macos).
+  static const _macFiles = MethodChannel('haruspex/files');
+
+  Future<void> _onMacFiles(MethodCall call) async {
+    if (call.method != 'open') return;
+    for (final p in (call.arguments as List).cast<String>()) {
+      if (FileSystemEntity.isDirectorySync(p)) {
+        await openVault(p);
+      } else {
+        await openPath(p);
+      }
+    }
+  }
+
+  /// Files the Finder asked to open before the app was ready.
+  Future<List<String>> _pendingMacFiles() async {
+    if (!Platform.isMacOS) return const [];
+    try {
+      return await _macFiles.invokeListMethod<String>('pending') ?? const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<void> _openInitial() async {
+    final initial = [...widget.initialFiles, ...await _pendingMacFiles()];
     var openedVault = false;
-    for (final f in widget.initialFiles) {
+    for (final f in initial) {
       if (FileSystemEntity.isDirectorySync(f)) {
         await openVault(f);
         openedVault = true;
@@ -120,7 +151,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
         await openVault(last);
       }
     }
-    for (final f in widget.initialFiles) {
+    for (final f in initial) {
       if (!FileSystemEntity.isDirectorySync(f)) await openPath(f);
     }
     // Otherwise the dashboard shows, as in Doom Emacs.
@@ -701,16 +732,9 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     });
   }
 
-  void _openExternal(String target) {
-    if (Platform.isLinux) {
-      Process.start('xdg-open', [target], mode: ProcessStartMode.detached).then<void>(
-        (_) {},
-        onError: (Object e) => showMessage('Could not open $target'),
-      );
-      showMessage('Opening $target');
-    } else {
-      showMessage('Opening external links is not supported on this platform yet');
-    }
+  Future<void> _openExternal(String target) async {
+    showMessage('Opening $target');
+    if (!await openWithSystem(target)) showMessage('Could not open $target');
   }
 
   // -------------------------------------------------------------------------
@@ -830,36 +854,42 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     });
   }
 
-  Map<ShortcutActivator, VoidCallback> get _shortcuts => {
-        const SingleActivator(LogicalKeyboardKey.keyN, control: true): newDocument,
-        const SingleActivator(LogicalKeyboardKey.keyB, control: true): newScratch,
-        const SingleActivator(LogicalKeyboardKey.f2): () => renameDocument(),
-        const SingleActivator(LogicalKeyboardKey.keyO, control: true): openDialog,
-        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () => save(),
-        const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true): () => saveAs(),
-        const SingleActivator(LogicalKeyboardKey.keyW, control: true): () => closeTab(),
-        const SingleActivator(LogicalKeyboardKey.keyQ, control: true): quit,
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _showFind(),
-        const SingleActivator(LogicalKeyboardKey.keyH, control: true): () => _showFind(replace: true),
-        const SingleActivator(LogicalKeyboardKey.tab, control: true): () {
-          if (docs.isNotEmpty) _selectTab((current + 1) % docs.length);
-        },
-        const SingleActivator(LogicalKeyboardKey.tab, control: true, shift: true): () {
-          if (docs.isNotEmpty) _selectTab((current - 1 + docs.length) % docs.length);
-        },
-        const SingleActivator(LogicalKeyboardKey.keyP, control: true): quickSwitch,
-        const SingleActivator(LogicalKeyboardKey.keyE, control: true, shift: true): () =>
-            settings.update((s) => s.showFiles = !s.showFiles),
-        const SingleActivator(LogicalKeyboardKey.equal, control: true): () => _zoom(1),
-        const SingleActivator(LogicalKeyboardKey.equal, control: true, shift: true): () => _zoom(1),
-        const SingleActivator(LogicalKeyboardKey.add, control: true): () => _zoom(1),
-        const SingleActivator(LogicalKeyboardKey.numpadAdd, control: true): () => _zoom(1),
-        const SingleActivator(LogicalKeyboardKey.minus, control: true): () => _zoom(-1),
-        const SingleActivator(LogicalKeyboardKey.numpadSubtract, control: true): () => _zoom(-1),
-        const SingleActivator(LogicalKeyboardKey.digit0, control: true): () => _zoom(0),
-        const SingleActivator(LogicalKeyboardKey.keyO, control: true, shift: true): () =>
-            settings.update((s) => s.showOutline = !s.showOutline),
-      };
+  Map<ShortcutActivator, VoidCallback> get _shortcuts {
+    final mac = isMac;
+    void nextTab(int step) {
+      if (docs.isNotEmpty) _selectTab((current + step + docs.length) % docs.length);
+    }
+
+    return {
+      cmd(LogicalKeyboardKey.keyN): newDocument,
+      cmd(LogicalKeyboardKey.keyB): newScratch,
+      const SingleActivator(LogicalKeyboardKey.f2): () => renameDocument(),
+      cmd(LogicalKeyboardKey.keyO): openDialog,
+      cmd(LogicalKeyboardKey.keyS): () => save(),
+      cmd(LogicalKeyboardKey.keyS, shift: true): () => saveAs(),
+      cmd(LogicalKeyboardKey.keyW): () => closeTab(),
+      cmd(LogicalKeyboardKey.keyQ): quit,
+      cmd(LogicalKeyboardKey.keyF): () => _showFind(),
+      if (mac) cmd(LogicalKeyboardKey.keyF, shift: true): () => _showFind(replace: true),
+      if (!mac) cmd(LogicalKeyboardKey.keyH): () => _showFind(replace: true),
+      if (mac) cmd(LogicalKeyboardKey.comma): () => showSettingsDialog(context, settings),
+      // Ctrl+Tab switches tabs on every system, Cmd+Shift+[ and ] too on a Mac.
+      const SingleActivator(LogicalKeyboardKey.tab, control: true): () => nextTab(1),
+      const SingleActivator(LogicalKeyboardKey.tab, control: true, shift: true): () => nextTab(-1),
+      if (mac) cmd(LogicalKeyboardKey.bracketRight, shift: true): () => nextTab(1),
+      if (mac) cmd(LogicalKeyboardKey.bracketLeft, shift: true): () => nextTab(-1),
+      cmd(LogicalKeyboardKey.keyP): quickSwitch,
+      cmd(LogicalKeyboardKey.keyE, shift: true): () => settings.update((s) => s.showFiles = !s.showFiles),
+      cmd(LogicalKeyboardKey.equal): () => _zoom(1),
+      cmd(LogicalKeyboardKey.equal, shift: true): () => _zoom(1),
+      cmd(LogicalKeyboardKey.add): () => _zoom(1),
+      cmd(LogicalKeyboardKey.numpadAdd): () => _zoom(1),
+      cmd(LogicalKeyboardKey.minus): () => _zoom(-1),
+      cmd(LogicalKeyboardKey.numpadSubtract): () => _zoom(-1),
+      cmd(LogicalKeyboardKey.digit0): () => _zoom(0),
+      cmd(LogicalKeyboardKey.keyO, shift: true): () => settings.update((s) => s.showOutline = !s.showOutline),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -885,7 +915,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
     final t = orgTheme;
     final d = doc;
     final v = vault;
-    return Scaffold(
+    final Widget page = Scaffold(
       backgroundColor: t.background,
       body: WindowChrome.resizable(Listener(
         onPointerSignal: _onPointerSignal,
@@ -894,7 +924,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
         child: Column(children: [
           TitleBar(
             theme: t,
-            menu: _menuBar(context, t),
+            menu: _macMenuBar ? const SizedBox.shrink() : windowMenuBar(_menus(context)),
             title: d == null ? 'Haruspex' : '${d.dirty && !d.scratch ? '● ' : ''}${d.name} · Haruspex',
             onClose: quit,
           ),
@@ -966,7 +996,11 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
         ]),
       ))),
     );
+    return _macMenuBar ? PlatformMenuBar(menus: _macMenus(context), child: page) : page;
   }
+
+  /// The menus go to the macOS menu bar when running on a Mac.
+  bool get _macMenuBar => isMac && Platform.isMacOS;
 
   // -------------------------------------------------------------------------
   // Side panel widths and Ctrl+wheel zoom
@@ -995,7 +1029,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   /// Ctrl+mouse wheel zooms. Scroll views ignore the wheel while Ctrl is
   /// held (see HaruspexScrollBehavior), so the event comes here.
   void _onPointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent || !HardwareKeyboard.instance.isControlPressed) return;
+    if (event is! PointerScrollEvent || !primaryPressed) return;
     GestureBinding.instance.pointerSignalResolver.register(event, (e) {
       if (e is! PointerScrollEvent) return;
       _wheel += e.scrollDelta.dy;
@@ -1019,10 +1053,10 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   List<(String, String, String, VoidCallback)> get _dashItems {
     final v = vault;
     return [
-      ('n', v == null ? 'New file' : 'New note', 'Ctrl+N', newDocument),
-      ('b', 'Scratch buffer', 'Ctrl+B', newScratch),
-      if (v != null) ('p', 'Find note', 'Ctrl+P', quickSwitch),
-      ('o', 'Open file', 'Ctrl+O', openDialog),
+      ('n', v == null ? 'New file' : 'New note', '$cmdName+N', newDocument),
+      ('b', 'Scratch buffer', '$cmdName+B', newScratch),
+      if (v != null) ('p', 'Find note', '$cmdName+P', quickSwitch),
+      ('o', 'Open file', '$cmdName+O', openDialog),
       ('f', v == null ? 'Open folder as vault' : 'Open another folder', '', openVaultDialog),
       if (v != null || settings.agendaFiles.isNotEmpty) ('a', 'Agenda', 'C-c a', _openAgenda),
       ('t', 'Tutorial', '', () => _addDoc(_newDoc(tutorialText))),
@@ -1155,143 +1189,159 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
   // Menu bar and tabs
   // -------------------------------------------------------------------------
 
-  Widget _menuBar(BuildContext context, OrgTheme t) {
-    MenuItemButton item(String label, VoidCallback? onPressed, {MenuSerializableShortcut? shortcut, String? hint}) {
-      return MenuItemButton(
-        onPressed: onPressed,
-        shortcut: shortcut,
-        trailingIcon: hint == null ? null : Opacity(opacity: 0.6, child: Text(hint)),
-        child: Text(label),
-      );
-    }
-
+  /// The application menus. On macOS, Quit, Settings and About go to the
+  /// application menu instead (see [_macMenus]).
+  List<MenuGroup> _menus(BuildContext context) {
     final hasDoc = doc != null;
-    VoidCallback? cmd(String id) => hasDoc ? () => _command(id) : null;
+    final mac = isMac;
+    VoidCallback? org(String id) => hasDoc ? () => _command(id) : null;
+    return [
+      MenuGroup('File', [
+        MenuAction(vault == null ? 'New file' : 'New note', newDocument, shortcut: cmd(LogicalKeyboardKey.keyN)),
+        MenuAction('New scratch buffer', newScratch, shortcut: cmd(LogicalKeyboardKey.keyB)),
+        MenuAction('Open file…', openDialog, shortcut: cmd(LogicalKeyboardKey.keyO)),
+        MenuGroup('Open recent file', [
+          if (settings.recentFiles.isEmpty) const MenuAction('(none)', null),
+          for (final f in settings.recentFiles) MenuAction(f, () => openPath(f)),
+        ]),
+        const MenuSeparator(),
+        MenuAction('Open folder as vault…', openVaultDialog),
+        MenuGroup('Open recent folder', [
+          if (settings.recentVaults.isEmpty) const MenuAction('(none)', null),
+          for (final f in settings.recentVaults) MenuAction(f, () => openVault(f)),
+        ]),
+        MenuAction('Quick switcher…', vault == null ? null : quickSwitch, shortcut: cmd(LogicalKeyboardKey.keyP)),
+        MenuAction('Close folder', vault == null ? null : closeVault),
+        const MenuSeparator(),
+        MenuAction('Save', hasDoc ? () => save() : null, shortcut: cmd(LogicalKeyboardKey.keyS)),
+        MenuAction('Save as…', hasDoc ? () => saveAs() : null, shortcut: cmd(LogicalKeyboardKey.keyS, shift: true)),
+        MenuAction('Rename…', hasDoc ? () => renameDocument() : null,
+            shortcut: const SingleActivator(LogicalKeyboardKey.f2)),
+        const MenuSeparator(),
+        MenuAction('Close tab', hasDoc ? () => closeTab() : null, shortcut: cmd(LogicalKeyboardKey.keyW)),
+        if (!mac) MenuAction('Quit', quit, shortcut: cmd(LogicalKeyboardKey.keyQ)),
+      ]),
+      MenuGroup('Edit', [
+        MenuAction('Undo', hasDoc ? () => editor?.undo() : null, shortcut: cmd(LogicalKeyboardKey.keyZ)),
+        MenuAction('Redo', hasDoc ? () => editor?.redo() : null, shortcut: cmd(LogicalKeyboardKey.keyZ, shift: true)),
+        const MenuSeparator(),
+        MenuAction('Cut', hasDoc ? () => editor?.cutSelection() : null, shortcut: cmd(LogicalKeyboardKey.keyX)),
+        // Ctrl+C without a selection is the Org prefix, so it is not a menu
+        // shortcut on Linux. On macOS copy is Cmd+C.
+        if (mac)
+          MenuAction('Copy', hasDoc ? () => editor?.copySelection() : null, shortcut: cmd(LogicalKeyboardKey.keyC))
+        else
+          MenuAction('Copy', hasDoc ? () => editor?.copySelection() : null, hint: 'Ctrl+C (with selection)'),
+        MenuAction('Paste', hasDoc ? () => editor?.paste() : null, shortcut: cmd(LogicalKeyboardKey.keyV)),
+        MenuAction('Select all', hasDoc ? () => editor?.selectAll() : null, shortcut: cmd(LogicalKeyboardKey.keyA)),
+        const MenuSeparator(),
+        MenuAction('Find…', hasDoc ? () => _showFind() : null, shortcut: cmd(LogicalKeyboardKey.keyF)),
+        MenuAction('Replace…', hasDoc ? () => _showFind(replace: true) : null,
+            shortcut: mac ? cmd(LogicalKeyboardKey.keyF, shift: true) : cmd(LogicalKeyboardKey.keyH)),
+        const MenuSeparator(),
+        MenuAction(settings.spellCheck ? 'Stop checking spelling' : 'Check spelling',
+            () => settings.update((s) => s.spellCheck = !s.spellCheck)),
+      ]),
+      MenuGroup('Org', [
+        MenuGroup('Visibility', [
+          MenuAction('Cycle at caret', org('cycle'), hint: 'Tab'),
+          MenuAction('Cycle document', org('globalCycle'), hint: 'Shift+Tab'),
+          MenuAction('Overview', org('overview')),
+          MenuAction('Contents', org('contents')),
+          MenuAction('Show all', org('showAll')),
+        ]),
+        MenuGroup('Structure', [
+          MenuAction('New heading', org('insertHeading'), hint: '$altName+Enter'),
+          MenuAction('New TODO heading', org('insertTodoHeading'), hint: '$altName+Shift+Enter'),
+          MenuAction('New heading after subtree', org('insertHeadingAfter'), hint: 'Ctrl+Enter'),
+          MenuAction('Promote', org('promote'), hint: '$altName+Left'),
+          MenuAction('Demote', org('demote'), hint: '$altName+Right'),
+          MenuAction('Promote subtree', org('promoteTree'), hint: '$altName+Shift+Left'),
+          MenuAction('Demote subtree', org('demoteTree'), hint: '$altName+Shift+Right'),
+          MenuAction('Move up', org('moveUp'), hint: '$altName+Up'),
+          MenuAction('Move down', org('moveDown'), hint: '$altName+Down'),
+          MenuAction('Toggle heading', org('toggleHeading'), hint: 'C-c *'),
+        ]),
+        const MenuSeparator(),
+        MenuAction('Cycle TODO', org('todo'), hint: 'C-c C-t'),
+        MenuAction('Priority…', org('priority'), hint: 'C-c ,'),
+        MenuAction('Tags…', org('tags'), hint: 'C-c C-q'),
+        MenuAction('Schedule…', org('schedule'), hint: 'C-c C-s'),
+        MenuAction('Deadline…', org('deadline'), hint: 'C-c C-d'),
+        MenuAction('Timestamp…', org('timestamp'), hint: 'C-c .'),
+        MenuAction('Inactive timestamp…', org('inactiveTimestamp'), hint: 'C-c !'),
+        const MenuSeparator(),
+        MenuAction('New list item', org('insertItem'), hint: '$altName+Enter'),
+        MenuAction('Toggle checkbox', org('checkbox'), hint: 'C-c C-c'),
+        MenuAction('Add/remove checkbox', org('checkboxPresence'), hint: 'C-c C-x'),
+        MenuAction('Update statistics', org('statistics'), hint: 'C-c #'),
+        const MenuSeparator(),
+        MenuAction('Insert / align table', org('table'), hint: 'C-c |'),
+        MenuAction('Insert table rule', org('tableHline'), hint: 'C-c -'),
+        const MenuSeparator(),
+        MenuAction('Insert link…', org('link'), hint: 'C-c C-l'),
+        MenuAction('Open link', org('openLink'), hint: 'C-c C-o'),
+        const MenuSeparator(),
+        MenuAction('Agenda', hasDoc || vault != null ? _openAgenda : null, hint: 'C-c a'),
+      ]),
+      MenuGroup('View', [
+        MenuAction(settings.showFiles ? 'Hide files' : 'Show files',
+            vault == null ? null : () => settings.update((s) => s.showFiles = !s.showFiles),
+            shortcut: cmd(LogicalKeyboardKey.keyE, shift: true)),
+        MenuAction(settings.showOutline ? 'Hide outline' : 'Show outline',
+            () => settings.update((s) => s.showOutline = !s.showOutline),
+            shortcut: cmd(LogicalKeyboardKey.keyO, shift: true)),
+        MenuAction(settings.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
+            () => settings.update((s) => s.lineNumbers = !s.lineNumbers)),
+        MenuAction('Zoom in', () => _zoom(1), shortcut: cmd(LogicalKeyboardKey.equal)),
+        MenuAction('Zoom out', () => _zoom(-1), shortcut: cmd(LogicalKeyboardKey.minus)),
+        MenuAction('Reset zoom', () => _zoom(0), shortcut: cmd(LogicalKeyboardKey.digit0)),
+        const MenuSeparator(),
+        MenuAction('Dashboard', docs.isEmpty ? null : _showDashboard),
+        if (!mac) MenuAction('Settings…', () => showSettingsDialog(context, settings)),
+      ]),
+      MenuGroup('Help', [
+        MenuAction('Keyboard shortcuts', () => showKeyBindings(context)),
+        MenuAction('Tutorial', () => _addDoc(_newDoc(tutorialText))),
+        if (!mac) MenuAction('About', () => _about(context)),
+      ]),
+    ];
+  }
 
-    return MenuBar(
-      children: [
-        SubmenuButton(menuChildren: [
-          item(vault == null ? 'New file' : 'New note', newDocument,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyN, control: true)),
-          item('New scratch buffer', newScratch, shortcut: const SingleActivator(LogicalKeyboardKey.keyB, control: true)),
-          item('Open file…', openDialog, shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true)),
-          SubmenuButton(
-            menuChildren: [
-              if (settings.recentFiles.isEmpty) item('(none)', null),
-              for (final f in settings.recentFiles) item(f, () => openPath(f)),
-            ],
-            child: const Text('Open recent file'),
+  void _about(BuildContext context) =>
+      showInfo(context, 'Haruspex', 'A plain text editor built on Org mode.\nVersion $appVersion.');
+
+  /// The macOS menu bar: the application menu (About, Settings, Hide,
+  /// Quit), the application's menus and the standard Window menu.
+  List<PlatformMenuItem> _macMenus(BuildContext context) {
+    PlatformMenuItemGroup group(List<PlatformMenuItem?> items) =>
+        PlatformMenuItemGroup(members: [for (final i in items) if (i != null) i]);
+    final hide = group([
+      providedMenuItem(PlatformProvidedMenuItemType.hide),
+      providedMenuItem(PlatformProvidedMenuItemType.hideOtherApplications),
+      providedMenuItem(PlatformProvidedMenuItemType.showAllApplications),
+    ]);
+    final window = [
+      providedMenuItem(PlatformProvidedMenuItemType.minimizeWindow),
+      providedMenuItem(PlatformProvidedMenuItemType.zoomWindow),
+      providedMenuItem(PlatformProvidedMenuItemType.toggleFullScreen),
+    ].whereType<PlatformMenuItem>().toList();
+    return [
+      PlatformMenu(label: 'Haruspex', menus: [
+        group([PlatformMenuItem(label: 'About Haruspex', onSelected: () => _about(context))]),
+        group([
+          PlatformMenuItem(
+            label: 'Settings…',
+            shortcut: cmd(LogicalKeyboardKey.comma),
+            onSelected: () => showSettingsDialog(context, settings),
           ),
-          const Divider(height: 1),
-          item('Open folder as vault…', openVaultDialog),
-          SubmenuButton(
-            menuChildren: [
-              if (settings.recentVaults.isEmpty) item('(none)', null),
-              for (final f in settings.recentVaults) item(f, () => openVault(f)),
-            ],
-            child: const Text('Open recent folder'),
-          ),
-          item('Quick switcher…', vault == null ? null : quickSwitch,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyP, control: true)),
-          item('Close folder', vault == null ? null : closeVault),
-          const Divider(height: 1),
-          item('Save', hasDoc ? () => save() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true)),
-          item('Save as…', hasDoc ? () => saveAs() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true)),
-          item('Rename…', hasDoc ? () => renameDocument() : null, shortcut: const SingleActivator(LogicalKeyboardKey.f2)),
-          const Divider(height: 1),
-          item('Close tab', hasDoc ? () => closeTab() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyW, control: true)),
-          item('Quit', quit, shortcut: const SingleActivator(LogicalKeyboardKey.keyQ, control: true)),
-        ], child: const Text('File')),
-        SubmenuButton(menuChildren: [
-          item('Undo', hasDoc ? () => editor?.undo() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, control: true)),
-          item('Redo', hasDoc ? () => editor?.redo() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true)),
-          const Divider(height: 1),
-          item('Cut', hasDoc ? () => editor?.cutSelection() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyX, control: true)),
-          item('Copy', hasDoc ? () => editor?.copySelection() : null, hint: 'Ctrl+C (with selection)'),
-          item('Paste', hasDoc ? () => editor?.paste() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyV, control: true)),
-          item('Select all', hasDoc ? () => editor?.selectAll() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyA, control: true)),
-          const Divider(height: 1),
-          item('Find…', hasDoc ? () => _showFind() : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyF, control: true)),
-          item('Replace…', hasDoc ? () => _showFind(replace: true) : null,
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyH, control: true)),
-          const Divider(height: 1),
-          item(settings.spellCheck ? 'Stop checking spelling' : 'Check spelling',
-              () => settings.update((s) => s.spellCheck = !s.spellCheck)),
-        ], child: const Text('Edit')),
-        SubmenuButton(menuChildren: [
-          SubmenuButton(menuChildren: [
-            item('Cycle at caret', cmd('cycle'), hint: 'Tab'),
-            item('Cycle document', cmd('globalCycle'), hint: 'Shift+Tab'),
-            item('Overview', cmd('overview')),
-            item('Contents', cmd('contents')),
-            item('Show all', cmd('showAll')),
-          ], child: const Text('Visibility')),
-          SubmenuButton(menuChildren: [
-            item('New heading', cmd('insertHeading'), hint: 'Alt+Enter'),
-            item('New TODO heading', cmd('insertTodoHeading'), hint: 'Alt+Shift+Enter'),
-            item('New heading after subtree', cmd('insertHeadingAfter'), hint: 'Ctrl+Enter'),
-            item('Promote', cmd('promote'), hint: 'Alt+Left'),
-            item('Demote', cmd('demote'), hint: 'Alt+Right'),
-            item('Promote subtree', cmd('promoteTree'), hint: 'Alt+Shift+Left'),
-            item('Demote subtree', cmd('demoteTree'), hint: 'Alt+Shift+Right'),
-            item('Move up', cmd('moveUp'), hint: 'Alt+Up'),
-            item('Move down', cmd('moveDown'), hint: 'Alt+Down'),
-            item('Toggle heading', cmd('toggleHeading'), hint: 'C-c *'),
-          ], child: const Text('Structure')),
-          const Divider(height: 1),
-          item('Cycle TODO', cmd('todo'), hint: 'C-c C-t'),
-          item('Priority…', cmd('priority'), hint: 'C-c ,'),
-          item('Tags…', cmd('tags'), hint: 'C-c C-q'),
-          item('Schedule…', cmd('schedule'), hint: 'C-c C-s'),
-          item('Deadline…', cmd('deadline'), hint: 'C-c C-d'),
-          item('Timestamp…', cmd('timestamp'), hint: 'C-c .'),
-          item('Inactive timestamp…', cmd('inactiveTimestamp'), hint: 'C-c !'),
-          const Divider(height: 1),
-          item('New list item', cmd('insertItem'), hint: 'Alt+Enter'),
-          item('Toggle checkbox', cmd('checkbox'), hint: 'C-c C-c'),
-          item('Add/remove checkbox', cmd('checkboxPresence'), hint: 'C-c C-x'),
-          item('Update statistics', cmd('statistics'), hint: 'C-c #'),
-          const Divider(height: 1),
-          item('Insert / align table', cmd('table'), hint: 'C-c |'),
-          item('Insert table rule', cmd('tableHline'), hint: 'C-c -'),
-          const Divider(height: 1),
-          item('Insert link…', cmd('link'), hint: 'C-c C-l'),
-          item('Open link', cmd('openLink'), hint: 'C-c C-o'),
-          const Divider(height: 1),
-          item('Agenda', hasDoc || vault != null ? _openAgenda : null, hint: 'C-c a'),
-        ], child: const Text('Org')),
-        SubmenuButton(menuChildren: [
-          item(settings.showFiles ? 'Hide files' : 'Show files',
-              vault == null ? null : () => settings.update((s) => s.showFiles = !s.showFiles),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyE, control: true, shift: true)),
-          item(settings.showOutline ? 'Hide outline' : 'Show outline',
-              () => settings.update((s) => s.showOutline = !s.showOutline),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true, shift: true)),
-          item(settings.lineNumbers ? 'Hide line numbers' : 'Show line numbers',
-              () => settings.update((s) => s.lineNumbers = !s.lineNumbers)),
-          item('Zoom in', () => _zoom(1), shortcut: const SingleActivator(LogicalKeyboardKey.equal, control: true)),
-          item('Zoom out', () => _zoom(-1), shortcut: const SingleActivator(LogicalKeyboardKey.minus, control: true)),
-          item('Reset zoom', () => _zoom(0), shortcut: const SingleActivator(LogicalKeyboardKey.digit0, control: true)),
-          const Divider(height: 1),
-          item('Dashboard', docs.isEmpty ? null : _showDashboard),
-          item('Settings…', () => showSettingsDialog(context, settings)),
-        ], child: const Text('View')),
-        SubmenuButton(menuChildren: [
-          item('Keyboard shortcuts', () => showKeyBindings(context)),
-          item('Tutorial', () => _addDoc(_newDoc(tutorialText))),
-          item('About', () => showInfo(context, 'Haruspex', 'A plain text editor built on Org mode.\nVersion $appVersion.')),
-        ], child: const Text('Help')),
-      ],
-    );
+        ]),
+        if (hide.members.isNotEmpty) hide,
+        group([PlatformMenuItem(label: 'Quit Haruspex', shortcut: cmd(LogicalKeyboardKey.keyQ), onSelected: quit)]),
+      ]),
+      ...platformMenus(_menus(context)),
+      if (window.isNotEmpty) PlatformMenu(label: 'Window', menus: window),
+    ];
   }
 
   /// Closes every tab (asking to save) to get back to the dashboard.
@@ -1406,7 +1456,7 @@ class _WorkspaceState extends State<Workspace> implements EditorHost {
               HoverBox(
                 theme: t,
                 onTap: () => closeTab(i),
-                tooltip: 'Close (Ctrl+W)',
+                tooltip: 'Close ($cmdName+W)',
                 builder: (hot) => Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text('×', style: TextStyle(color: hot ? Colors.black : t.faint)),
