@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show SingleActivator;
 
 /// Keyboard and menu conventions of macOS: Cmd for application and
 /// clipboard commands, Option for words, Cmd+arrows for lines. Org commands
